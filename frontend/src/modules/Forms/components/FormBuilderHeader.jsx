@@ -1,36 +1,30 @@
 /**
- * Flow Builder Header
- * Compact header with clear action hierarchy
+ * Form Builder Header
+ * Compact header with clear action hierarchy, consistent with FlowBuilder pattern
  */
 
 import React from 'react';
-import { ArrowLeft, Save, Upload, Download, PanelRightClose, PanelRight, Layers, Copy, Plus } from 'lucide-react';
+import { ArrowLeft, Save, FileText, PanelRightClose, PanelRight, Layers, Copy, Search, ExternalLink } from 'lucide-react';
 
-const FlowBuilderHeader = ({
-  flowName = 'Untitled Flow',
+const FormBuilderHeader = ({
+  formName = 'Untitled Form',
   status = 'Draft',
   onExit,
-  onCreateNewFlow,
   onSave,
   onSaveAsNew,
-  onToggleDetails,
-  isDetailsOpen = false,
-  onOpenHistory,
-  aiAssistSlot = null,
-  onImport,
-  onExport,
+  onOpenPublicLink,
   onBrowseTemplates,
-  onFlowUpdate,
+  onFormUpdate,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
-  const [tempTitle, setTempTitle] = React.useState(flowName);
+  const [tempTitle, setTempTitle] = React.useState(formName);
 
   React.useEffect(() => {
-    setTempTitle(flowName);
-  }, [flowName]);
+    setTempTitle(formName);
+  }, [formName]);
 
   const handleTitleSubmit = () => {
-    onFlowUpdate?.({ name: tempTitle });
+    onFormUpdate?.({ name: tempTitle });
     setIsEditingTitle(false);
   };
 
@@ -69,7 +63,7 @@ const FlowBuilderHeader = ({
               onClick={() => setIsEditingTitle(true)}
             >
               <h1 className="text-sm font-black tracking-tight text-white/90 truncate flex-shrink-1">
-                {flowName || 'Untitled Flow'}
+                {formName || 'Untitled Form'}
               </h1>
               <div className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] font-bold text-white/30 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">
                 Edit
@@ -93,30 +87,22 @@ const FlowBuilderHeader = ({
             onClick={onBrowseTemplates}
             className="btn-toolbar-lead h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Browse Templates</span>
+            <Search className="w-3.5 h-3.5" />
+            <span>Templates</span>
           </button>
         )}
-        {onImport && (
+        
+        {onOpenPublicLink && (
           <button
             type="button"
-            onClick={onImport}
+            onClick={onOpenPublicLink}
             className="btn-secondary h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
           >
-            <Upload className="w-3.5 h-3.5 text-sky-400" />
-            <span>Import</span>
+            <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+            <span>Open Link</span>
           </button>
         )}
-        {onExport && (
-          <button
-            type="button"
-            onClick={onExport}
-            className="btn-secondary h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
-          >
-            <Download className="w-3.5 h-3.5 text-sky-400" />
-            <span>Export</span>
-          </button>
-        )}
+
         {onSaveAsNew && (
           <button
             type="button"
@@ -127,6 +113,7 @@ const FlowBuilderHeader = ({
             <span>Save As New</span>
           </button>
         )}
+        
         {onSave && (
           <button
             type="button"
@@ -137,24 +124,9 @@ const FlowBuilderHeader = ({
             <span>Save</span>
           </button>
         )}
-        {onToggleDetails && (
-          <button
-            type="button"
-            onClick={onToggleDetails}
-            className={`h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-4 font-bold uppercase tracking-tight rounded-[var(--radius-card)] transition-all shadow-sm ${
-              isDetailsOpen
-                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 shadow-[0_0_12px_rgba(14,165,233,0.3)]'
-                : 'btn-secondary'
-            }`}
-          >
-            {isDetailsOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
-            <span className="hidden lg:inline">{isDetailsOpen ? 'Hide' : 'Details'}</span>
-          </button>
-        )}
-        {aiAssistSlot}
       </div>
     </div>
   );
 };
 
-export default FlowBuilderHeader;
+export default FormBuilderHeader;

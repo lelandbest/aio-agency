@@ -42,19 +42,19 @@ export const createDraftFromAgent = async (agent, intent = 'Draft a workflow fro
       iconName: 'Play',
       nodeColor: 'trigger',
     },
-    { x: 100, y: 160 }
+    { x: 40, y: 160 }
   );
 
+  let currentX = 140;
   const actionNode = createNode(
     {
       id: 'agent-action',
       type: 'action',
       label: agent?.name ? `${agent.name} Action` : 'Agent Action',
       description: agent?.specialization || 'Agent-driven task',
-      iconName: 'Bot',
       nodeColor: 'action',
     },
-    { x: 360, y: 160 }
+    { x: currentX, y: 160 }
   );
 
   const draft = {

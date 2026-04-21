@@ -30,7 +30,6 @@ import {
   Eye, ArrowLeft, Tag, Layout, FolderPlus
 } from 'lucide-react';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
-import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
@@ -41,6 +40,8 @@ import FormTemplateGallery from './FormTemplateGallery';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
+import { useNotice } from '../../contexts/NoticeContext';
+import FormBuilderHeader from './components/FormBuilderHeader';
 
 const contentFieldTypes = new Set(['textarea', 'content', 'html']);
 
@@ -242,12 +243,15 @@ const FormBuilderModule = () => {
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showMediaLibraryModal, setShowMediaLibraryModal] = useState(false);
   const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
-  const [saveAction, triggerSaveAction] = useTransientSaveFeedback(2000);
   const [isSaving, setIsSaving] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
   const [headerImageAssets, setHeaderImageAssets] = useState([]);
   const [headerImageLoading, setHeaderImageLoading] = useState(false);
   const [headerImageUploading, setHeaderImageUploading] = useState(false);
+  const [showNamingModal, setShowNamingModal] = useState(false);
+  const [namingPendingAction, setNamingPendingAction] = useState(null); // 'save' or 'saveAsNew'
+  const [newFormName, setNewFormName] = useState('');
+  const { showNotice } = useNotice();
   const headerImageInputRef = useRef(null);
   const selectedFieldSupportsAssist = Boolean(selectedField?.isContent);
 
@@ -827,6 +831,11 @@ const FormBuilderModule = () => {
     setActiveTab('display');
   };
 
+  const handleFormUpdate = (updates) => {
+    if (!currentForm) return;
+    setCurrentForm(prev => ({ ...prev, ...updates }));
+  };
+
   const updateFieldProperty = (fieldId, key, value) => {
     if (!currentForm) return;
     const updatedSchema = currentForm.schema.map(f => {
@@ -859,8 +868,21 @@ const FormBuilderModule = () => {
     if (selectedField?.id === fieldId) setSelectedField(null);
   };
 
-  const handleSaveForm = async () => {
+  const handleSaveForm = async (forcedNameParam) => {
     if (!currentForm) return;
+    
+    // Safety check: Ensure forcedName is a string, not a React Event
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
+    // Naming Rule: Absolute naming enforcement before save
+    const currentName = forcedName || currentForm.name || '';
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled form' || currentName.toLowerCase() === 'new untitled form') {
+      setNewFormName(currentName);
+      setNamingPendingAction('save');
+      setShowNamingModal(true);
+      return;
+    }
+
     try {
       setIsSaving(true);
       const normalizedSchema = [];
@@ -874,9 +896,9 @@ const FormBuilderModule = () => {
       }
       const savedForm = await updateFormApi(currentForm.id, {
         schema: normalizedSchema,
-        name: currentForm.name,
+        name: forcedName || currentForm.name,
         folderId: currentForm.folderId,
-      slug: currentForm.slug || `form-${Date.now()}`,
+        slug: currentForm.slug || `form-${Date.now()}`,
         settings: currentForm.settings,
         status: currentForm.status,
         isActive: currentForm.isActive
@@ -884,13 +906,62 @@ const FormBuilderModule = () => {
       if (savedForm) {
         setCurrentForm(normalizeFormRecord(savedForm));
       }
-      triggerSaveAction('form-saved');
+      showNotice({ type: 'success', message: `${savedForm?.name || currentForm.name} SAVED` });
       fetchForms();
       fetchCmsTables();
     } catch (error) {
       console.error('Error saving form:', error);
-      setAlertMessage('Failed to save form: ' + error.message);
-      setTimeout(() => setAlertMessage(null), 3000);
+      showNotice({ type: 'error', message: 'Save failed: ' + error.message });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAsNewForm = async (forcedNameParam) => {
+    if (!currentForm) return;
+    
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+    const currentName = forcedName || currentForm.name || '';
+    
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled form' || currentName.toLowerCase() === 'new untitled form') {
+      setNewFormName(currentName);
+      setNamingPendingAction('saveAsNew');
+      setShowNamingModal(true);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const normalizedSchema = [];
+      for (const field of currentForm.schema || []) {
+        const normalizedField = normalizeFormField({
+          ...field,
+          name: field.name || buildUniqueFieldName(field.label || field.type, normalizedSchema),
+          isContent: typeof field.isContent === 'boolean' ? field.isContent : isContentFieldType(field.type),
+        });
+        normalizedSchema.push(normalizedField);
+      }
+      
+      const newFormRecord = {
+        name: forcedName ? forcedName : `${currentForm.name} Copy`,
+        schema: normalizedSchema,
+        folderId: currentForm.folderId,
+        slug: `form-${Date.now()}`,
+        settings: currentForm.settings,
+        status: 'Draft',
+        isActive: false
+      };
+
+      const savedForm = await createFormApi(newFormRecord);
+      if (savedForm) {
+        setCurrentForm(normalizeFormRecord(savedForm));
+      }
+      showNotice({ type: 'success', message: `${savedForm?.name || newFormRecord.name} SAVED` });
+      fetchForms();
+      fetchCmsTables();
+    } catch (error) {
+      console.error('Error saving form as new:', error);
+      showNotice({ type: 'error', message: 'Save As New failed: ' + error.message });
     } finally {
       setIsSaving(false);
     }
@@ -1107,6 +1178,16 @@ const FormBuilderModule = () => {
                 <Layers size={15} className={allFoldersExpanded ? '' : 'rotate-180'} />
               </button>
 
+              {(selectedForms.length + selectedFolders.length) > 0 && (
+                <button
+                  onClick={bulkDeleteSelectedForms}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-400/10 hover:bg-red-400/20 text-red-300 text-[10px] font-bold rounded-lg border border-red-500/30 transition shadow-sm uppercase tracking-widest"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete ({selectedForms.length + selectedFolders.length})</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setView('cms')}
                 className="btn-secondary px-3 py-1.5 text-[10px]"
@@ -1215,17 +1296,6 @@ const FormBuilderModule = () => {
               onFolderSelect={toggleFolderSelection}
               onCreateItem={createNewForm}
               createItemLabel="Create Form"
-              actions={
-                (selectedForms.length + selectedFolders.length) > 0 && (
-                  <button
-                    onClick={bulkDeleteSelectedForms}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
-                  >
-                    <Trash2 size={14} />
-                    <span>DELETE SELECTED ({selectedForms.length + selectedFolders.length})</span>
-                  </button>
-                )
-              }
               showHeader={false}
               searchQuery={tableSearch}
               onSearchQueryChange={setTableSearch}
@@ -1250,14 +1320,6 @@ const FormBuilderModule = () => {
           promptValue={modalState.promptValue}
           onPromptChange={setPromptValue}
         />
-        {saveAction === 'form-saved' && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-bottom-5 duration-300">
-            <div className="bg-[var(--color-bg-primary)]/90 backdrop-blur-md border border-green-500/30 text-green-400 px-6 py-2.5 rounded-full shadow-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest ring-1 ring-green-500/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span>System Synchronized</span>
-            </div>
-          </div>
-        )}
         {
           showFormEntry && entryForm && (
             <FormEntryModal
@@ -1290,95 +1352,20 @@ const FormBuilderModule = () => {
   return (
       <div className="module-root-standard bg-transparent">
         {/* ABSOLUTE TOOLBAR CONTRACT — ZONE RECONSTRUCTION */}
-        <div className="module-toolbar">
-          {/* LEFT ZONE: MODULE ACTIONS ONLY */}
-          <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
-            <button
-              onClick={() => {
-                setCurrentForm(null);
-                setSelectedField(null);
-                setView('list');
-              }}
-              className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
-            >
-              <ArrowLeft size={12} />
-              <span className="font-bold uppercase tracking-[0.14em]">Back to List</span>
-            </button>
-          </div>
-
-          {/* CENTER ZONE: STATUS ONLY */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-            <div className="w-80 pointer-events-auto">
-              <input
-                value={currentForm?.name || ''}
-                onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
-                className="h-7 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 text-[11px] font-bold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] placeholder:text-[var(--color-text-tertiary)]"
-                placeholder="Enter form name..."
-              />
-            </div>
-          </div>
-
-          {/* RIGHT ZONE: GLOBAL CONTROLS ONLY */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleOpenPublicLink(currentForm)}
-              className="btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em]"
-              title="Open public form"
-            >
-              <ExternalLink size={12} />
-              <span>Open</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveForm}
-              disabled={isSaving}
-              className={`btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] ${saveAction === 'form-saved' ? 'border-green-500/40 text-green-300' : ''}`}
-            >
-              <Save size={12} />
-              <span>{isSaving ? 'Saving' : saveAction === 'form-saved' ? 'Saved' : 'Save Form'}</span>
-            </button>
-
-            <div className="module-toolbar-utility">
-              <button
-                onClick={() => toggleAIAssist?.({ mode: 'brain' })}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
-                title="Brain (Global KB)"
-              >
-                <BrainIcon size={15} />
-              </button>
-              <button
-                onClick={() => toggleAIAssist?.({
-                  mode: 'help',
-                  context: {
-                    module: 'forms',
-                    surface: 'builder',
-                    formId: currentForm?.id,
-                    formName: currentForm?.name,
-                    selectedFieldId: selectedField?.id || null,
-                    selectedFieldName: selectedField?.name || null,
-                  }
-                })}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
-                title="Crosshair (Module AI)"
-              >
-                <Crosshair size={15} />
-              </button>
-              <button
-                onClick={() => openGlobalOverlay()}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
-                title="Composer"
-              >
-                <CommandSurfaceIcon size={15} />
-              </button>
-            </div>
-          </div>
-        </div>
-      {alertMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/30 text-red-200 px-4 py-3 rounded-lg shadow-xl">
-          {alertMessage}
-        </div>
-      )}
+        <FormBuilderHeader
+          formName={currentForm?.name}
+          status={currentForm?.isActive ? 'Active' : 'Draft'}
+          onExit={() => {
+            setCurrentForm(null);
+            setSelectedField(null);
+            setView('list');
+          }}
+          onSave={handleSaveForm}
+          onSaveAsNew={handleSaveAsNewForm}
+          onOpenPublicLink={() => handleOpenPublicLink(currentForm)}
+          onBrowseTemplates={() => setShowTemplateGallery(true)}
+          onFormUpdate={handleFormUpdate}
+        />
       
 
       <div className="module-content-stage px-2 pb-2 flex bg-transparent gap-1.5">
@@ -1397,15 +1384,19 @@ const FormBuilderModule = () => {
               {expandedCategories[idx] && (
                 <div className="flex flex-col gap-0.5 px-1 pb-1">
                   {category.items.map((tool, tIdx) => (
-                    <button
+                    <div
                       key={tIdx}
-                      onClick={() => handleAddField(tool)}
-                      className="w-full flex justify-start items-center gap-1.5 px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded text-[10px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify({ source: 'sidebar', tool }));
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      className="w-full flex justify-start items-center gap-1.5 px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded text-[10px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition cursor-grab active:cursor-grabbing"
                       title={tool.label}
                     >
                       <tool.icon size={12} />
                       <span>{tool.label}</span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1415,7 +1406,53 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Canvas */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-8 relative">
+      <div 
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-8 relative"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const dataStr = e.dataTransfer.getData('application/json');
+          if (!dataStr) return;
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.source === 'sidebar') {
+              const tool = data.tool;
+              if (!currentForm) return;
+              const newField = normalizeFormField({
+                id: `field-${Date.now()}`,
+                name: buildUniqueFieldName(tool.defaultLabel || tool.type, currentForm.schema || []),
+                type: tool.type,
+                label: tool.defaultLabel,
+                placeholder: '',
+                required: false,
+                options: tool.type === 'select' || tool.type === 'radio' ? ['Option 1', 'Option 2'] : undefined,
+                prefix: '',
+                suffix: '',
+                mask: '',
+                customClass: '',
+                tabIndex: 0,
+                labelPosition: 'Top',
+                hidden: false,
+                hideLabel: false,
+                showWordCounter: false,
+                content: tool.type === 'content' ? '<b>Add a section title</b>' : '',
+                minLength: '',
+                maxLength: '',
+                pattern: '',
+                customValidation: '',
+                errorMessage: '',
+                mapToContact: tool.type === 'email' ? 'email' : tool.type === 'tel' ? 'phone' : null,
+                isIdentifier: tool.type === 'email',
+                isContent: isContentFieldType(tool.type),
+              });
+              const updatedForm = { ...currentForm, schema: [...(currentForm.schema || []), newField] };
+              setCurrentForm(updatedForm);
+              setSelectedField(newField);
+              setActiveTab('display');
+            }
+          } catch (err) {}
+        }}
+      >
             <div className="max-w-3xl mx-auto space-y-4 pb-20">
               {resolveFormHeaderImage(currentForm) ? (
                 <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
@@ -1491,15 +1528,15 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Right Sidebar - Field Configuration */}
-      <div className="w-80 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
+      <div className="w-[360px] min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
         {selectedField ? (
           <>
-            <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)]">
-              {['Display', 'Data', 'Validation', ...(selectedField.type === 'purchase' ? ['Purchase'] : [])].map(tab => (
+            <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)] overflow-x-auto no-scrollbar">
+              {['Display', 'Data', 'Validation', 'Cond', 'Logic', ...(selectedField.type === 'purchase' ? ['Purchase'] : [])].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab.toLowerCase())}
-                  className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition ${activeTab === tab.toLowerCase()
+                  className={`flex-none px-3 py-3 text-[10px] font-bold uppercase tracking-wider transition whitespace-nowrap ${activeTab === tab.toLowerCase()
                     ? 'text-[var(--color-primary)] border-b-2 border-[var(--color-primary)] bg-[var(--color-bg-primary)]'
                     : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
                     }`}
@@ -1518,7 +1555,7 @@ const FormBuilderModule = () => {
                         <AIAssistButton variant="inline" onAssist={() => runFormAssist('label')} loading={assistTarget === `${selectedField.id}:label`} tooltip="Draft field label" />
                       ) : null}
                     </div>
-                    <input value={selectedField.label} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
+                    <input value={selectedField.label || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -1529,18 +1566,44 @@ const FormBuilderModule = () => {
                     </div>
                     <input value={selectedField.placeholder || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'placeholder', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={selectedField.required} onChange={(e) => updateFieldProperty(selectedField.id, 'required', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
-                    <label className="text-sm text-[var(--color-text-secondary)]">Required</label>
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Help / Description Text</label>
+                    <textarea value={selectedField.description || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'description', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-16 resize-none" placeholder="Add some context for this field..." />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={selectedField.hideLabel || false} onChange={(e) => updateFieldProperty(selectedField.id, 'hideLabel', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
-                    <label className="text-sm text-[var(--color-text-secondary)]">Hide Label</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Prefix</label>
+                      <input value={selectedField.prefix || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'prefix', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" placeholder="$" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Suffix</label>
+                      <input value={selectedField.suffix || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'suffix', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" placeholder=".00" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 py-4 border-t border-[var(--color-border)]">
+                    <div className="flex items-center gap-3">
+                      <input type="checkbox" checked={selectedField.hidden || false} onChange={(e) => updateFieldProperty(selectedField.id, 'hidden', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                      <label className="text-sm text-[var(--color-text-secondary)]">Hidden Field (not visible to users)</label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input type="checkbox" checked={selectedField.hideLabel || false} onChange={(e) => updateFieldProperty(selectedField.id, 'hideLabel', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                      <label className="text-sm text-[var(--color-text-secondary)]">Hide Label</label>
+                    </div>
                   </div>
                 </div>
               )}
               {activeTab === 'data' && (
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Field Key (Property Name)</label>
+                    <input
+                      value={selectedField.name || ''}
+                      onChange={(e) => updateFieldProperty(selectedField.id, 'name', e.target.value)}
+                      className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none font-mono"
+                      placeholder="e.g. firstName"
+                    />
+                    <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Used for integrations, webhooks, and raw data mapping.</p>
+                  </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Default Value</label>
@@ -1555,19 +1618,22 @@ const FormBuilderModule = () => {
                       placeholder="Enter default value"
                     />
                   </div>
-                  {(selectedField.type === 'select' || selectedField.type === 'radio') && (
+                  {(selectedField.type === 'select' || selectedField.type === 'radio' || selectedField.type === 'checkbox') && (
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Options (comma-separated)</label>
+                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Options (One per line)</label>
                         {selectedFieldSupportsAssist ? (
                           <AIAssistButton variant="inline" onAssist={() => runFormAssist('options')} loading={assistTarget === `${selectedField.id}:options`} tooltip="Draft field options" />
                         ) : null}
                       </div>
-                      <input
-                        value={selectedField.options?.join(', ') || ''}
-                        onChange={(e) => updateFieldProperty(selectedField.id, 'options', e.target.value)}
-                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                        placeholder="Option 1, Option 2, Option 3"
+                      <textarea
+                        value={selectedField.options?.join('\n') || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateFieldProperty(selectedField.id, 'options', val.split('\n').map(o => o.trim()).filter(Boolean));
+                        }}
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-32 whitespace-pre"
+                        placeholder="Option 1&#10;Option 2&#10;Option 3"
                       />
                     </div>
                   )}
@@ -1625,6 +1691,154 @@ const FormBuilderModule = () => {
                       className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-20"
                       placeholder="Custom error message"
                     />
+                  </div>
+                </div>
+              )}
+              {activeTab === 'cond' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-4">Set rules for when this field should be shown or hidden based on other field values.</p>
+                  <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <select 
+                        value={selectedField.conditional?.action || 'show'} 
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, action: e.target.value })}
+                        className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-text-primary)]"
+                      >
+                        <option value="show">Show</option>
+                        <option value="hide">Hide</option>
+                      </select>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">this field if</span>
+                      <select 
+                        value={selectedField.conditional?.match || 'any'} 
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, match: e.target.value })}
+                        className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-text-primary)]"
+                      >
+                        <option value="any">Any</option>
+                        <option value="all">All</option>
+                      </select>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">rules match:</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(selectedField.conditional?.rules || []).map((rule, rIdx) => (
+                        <div key={rIdx} className="flex items-center gap-2">
+                          <select
+                            value={rule.fieldId || ''}
+                            onChange={(e) => {
+                              const newRules = [...(selectedField.conditional?.rules || [])];
+                              newRules[rIdx] = { ...rule, fieldId: e.target.value };
+                              updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, rules: newRules });
+                            }}
+                            className="flex-[2] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-text-primary)] w-full min-w-0"
+                          >
+                            <option value="">Select field...</option>
+                            {currentForm?.schema?.filter(f => f.id !== selectedField.id).map(f => (
+                              <option key={f.id} value={f.id} className="truncate">{f.name || f.label || f.id}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={rule.operator || 'equals'}
+                            onChange={(e) => {
+                              const newRules = [...(selectedField.conditional?.rules || [])];
+                              newRules[rIdx] = { ...rule, operator: e.target.value };
+                              updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, rules: newRules });
+                            }}
+                            className="flex-[1.5] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-text-primary)] w-full min-w-0"
+                          >
+                            <option value="equals">Equals</option>
+                            <option value="not_equals">Not Equals</option>
+                            <option value="contains">Contains</option>
+                            <option value="is_empty">Is Empty</option>
+                          </select>
+                          <input
+                            value={rule.value || ''}
+                            onChange={(e) => {
+                              const newRules = [...(selectedField.conditional?.rules || [])];
+                              newRules[rIdx] = { ...rule, value: e.target.value };
+                              updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, rules: newRules });
+                            }}
+                            placeholder="Value"
+                            className="flex-[1.5] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-text-primary)] w-full min-w-0"
+                          />
+                          <button
+                            onClick={() => {
+                              const newRules = (selectedField.conditional?.rules || []).filter((_, i) => i !== rIdx);
+                              updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, rules: newRules });
+                            }}
+                            className="flex-none text-red-500 hover:text-red-400 p-1 rounded hover:bg-[var(--color-hover)]"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newRules = [...(selectedField.conditional?.rules || []), { fieldId: '', operator: 'equals', value: '' }];
+                          updateFieldProperty(selectedField.id, 'conditional', { ...selectedField.conditional, rules: newRules });
+                        }}
+                        className="text-xs text-[var(--color-primary)] font-bold mt-2 flex items-center gap-1 hover:underline"
+                      >
+                        + Add Rule
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'logic' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-4">Execute actions when this field value changes or is submitted.</p>
+                  <div className="space-y-3">
+                    {(selectedField.logic?.actions || []).map((action, aIdx) => (
+                      <div key={aIdx} className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2 justify-between">
+                           <span className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase flex items-center gap-1.5">Action {aIdx + 1}</span>
+                           <button
+                              onClick={() => {
+                                const newActions = (selectedField.logic?.actions || []).filter((_, i) => i !== aIdx);
+                                updateFieldProperty(selectedField.id, 'logic', { ...selectedField.logic, actions: newActions });
+                              }}
+                              className="text-red-500 hover:text-red-400 p-0.5 text-xs hover:bg-[var(--color-hover)] rounded transition"
+                            >
+                              Remove
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <select
+                            value={action.type || 'webhook'}
+                            onChange={(e) => {
+                              const newActions = [...(selectedField.logic?.actions || [])];
+                              newActions[aIdx] = { ...action, type: e.target.value };
+                              updateFieldProperty(selectedField.id, 'logic', { ...selectedField.logic, actions: newActions });
+                            }}
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                          >
+                            <option value="webhook">Trigger Webhook</option>
+                            <option value="email">Send Email</option>
+                            <option value="calc">Calculate Value</option>
+                            <option value="redirect">Redirect URL</option>
+                          </select>
+                          <input
+                            value={action.target || ''}
+                            onChange={(e) => {
+                              const newActions = [...(selectedField.logic?.actions || [])];
+                              newActions[aIdx] = { ...action, target: e.target.value };
+                              updateFieldProperty(selectedField.id, 'logic', { ...selectedField.logic, actions: newActions });
+                            }}
+                            placeholder={action.type === 'email' ? 'someone@example.com' : 'https://webhook.site/...' }
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const newActions = [...(selectedField.logic?.actions || []), { type: 'webhook', target: '' }];
+                        updateFieldProperty(selectedField.id, 'logic', { ...selectedField.logic, actions: newActions });
+                      }}
+                      className="w-full border border-[var(--color-border)] rounded-lg py-2.5 text-xs text-[var(--color-text-primary)] font-bold hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
+                    >
+                      + Add Action
+                    </button>
                   </div>
                 </div>
               )}
@@ -1974,7 +2188,58 @@ const FormBuilderModule = () => {
           onConfirm={() => modalState.onConfirm(modalState.promptValue)}
           onPromptChange={setPromptValue}
         />
-  </div>
+      {/* Naming Modal for Untitled Forms */}
+      {showNamingModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[500] backdrop-blur-sm">
+          <div className="bg-[var(--color-bg-primary)] border border-sky-500/30 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 className="text-lg font-black text-white mb-2 uppercase tracking-tight">Name Your Form</h3>
+            <p className="text-xs text-slate-400 mb-6">Untitled forms cannot be persisted. Provide a clear name to continue.</p>
+
+            <input
+              autoFocus
+              value={newFormName}
+              onChange={(e) => setNewFormName(e.target.value)}
+              placeholder="e.g. Lead Qualification Form"
+              className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-sky-500/50 transition-all mb-6"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFormName.trim()) {
+                  const finalName = newFormName.trim();
+                  handleFormUpdate({ name: finalName });
+                  setShowNamingModal(false);
+                  if (namingPendingAction === 'save') handleSaveForm(finalName);
+                  if (namingPendingAction === 'saveAsNew') handleSaveAsNewForm(finalName);
+                  setNamingPendingAction(null);
+                }
+                if (e.key === 'Escape') setShowNamingModal(false);
+              }}
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNamingModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!newFormName.trim()}
+                onClick={() => {
+                  const finalName = newFormName.trim();
+                  handleFormUpdate({ name: finalName });
+                  setShowNamingModal(false);
+                  if (namingPendingAction === 'save') handleSaveForm(finalName);
+                  if (namingPendingAction === 'saveAsNew') handleSaveAsNewForm(finalName);
+                  setNamingPendingAction(null);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-sky-600 text-white hover:bg-sky-500 transition-all disabled:opacity-50"
+              >
+                Confirm Name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

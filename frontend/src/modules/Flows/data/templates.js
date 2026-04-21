@@ -12,9 +12,9 @@ export const templates = [
     iconName: 'Bot',
     complexity: 'Advanced',
     nodes: [
-      { id: 'trigger', type: 'trigger', data: { label: 'New Lead', iconName: 'User' }, position: { x: 100, y: 200 } },
-      { id: 'ai-qualifier', type: 'action', data: { label: 'AI Qualifier', iconName: 'Bot' }, position: { x: 400, y: 200 } },
-      { id: 'crm-update', type: 'action', data: { label: 'Update CRM', iconName: 'Database' }, position: { x: 700, y: 200 } }
+      { id: 'trigger', type: 'trigger', data: { label: 'New Lead', iconName: 'User' }, position: { x: 40, y: 200 } },
+      { id: 'ai-qualifier', type: 'action', data: { label: 'AI Qualifier', iconName: 'Bot' }, position: { x: 140, y: 200 } },
+      { id: 'crm-update', type: 'action', data: { label: 'Update CRM', iconName: 'Database' }, position: { x: 240, y: 200 } }
     ],
     edges: [
       { id: 'e1-2', source: 'trigger', target: 'ai-qualifier', animated: false },
@@ -30,9 +30,9 @@ export const templates = [
     iconName: 'MessageSquare',
     complexity: 'Intermediate',
     nodes: [
-      { id: 'trigger', type: 'webhook', data: { label: 'Cart Abandoned', iconName: 'Webhook' }, position: { x: 100, y: 200 } },
-      { id: 'wait', type: 'logic', data: { label: 'Wait 1 Hour', iconName: 'Clock' }, position: { x: 400, y: 200 } },
-      { id: 'sms', type: 'action', data: { label: 'Send SMS', iconName: 'MessageSquare' }, position: { x: 700, y: 200 } }
+      { id: 'trigger', type: 'webhook', data: { label: 'Cart Abandoned', iconName: 'Webhook' }, position: { x: 40, y: 200 } },
+      { id: 'wait', type: 'logic', data: { label: 'Wait 1 Hour', iconName: 'Clock' }, position: { x: 140, y: 200 } },
+      { id: 'sms', type: 'action', data: { label: 'Send SMS', iconName: 'MessageSquare' }, position: { x: 240, y: 200 } }
     ],
     edges: [
       { id: 'e1-2', source: 'trigger', target: 'wait', animated: false },
@@ -48,8 +48,8 @@ export const templates = [
     iconName: 'Zap',
     complexity: 'Basic',
     nodes: [
-      { id: 'trigger', type: 'webhook', data: { label: 'Incoming Hook', iconName: 'Webhook' }, position: { x: 100, y: 200 } },
-      { id: 'alert', type: 'action', data: { label: 'Send Alert', iconName: 'Bell' }, position: { x: 400, y: 200 } }
+      { id: 'trigger', type: 'webhook', data: { label: 'Incoming Hook', iconName: 'Webhook' }, position: { x: 40, y: 200 } },
+      { id: 'alert', type: 'action', data: { label: 'Send Alert', iconName: 'Bell' }, position: { x: 140, y: 200 } }
     ],
     edges: [
       { id: 'e1-2', source: 'trigger', target: 'alert', animated: false }
@@ -73,7 +73,7 @@ export const templates = [
           templateId: 'manual-trigger',
           config: { event: 'manual' },
         },
-        position: { x: 80, y: 240 },
+        position: { x: 40, y: 240 },
       },
       {
         id: 'podcast-script',
@@ -97,7 +97,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 360, y: 240 },
+        position: { x: 140, y: 240 },
       },
       {
         id: 'podcast-tts',
@@ -114,7 +114,7 @@ export const templates = [
             provider: 'elevenlabs_tts',
           },
         },
-        position: { x: 660, y: 240 },
+        position: { x: 240, y: 240 },
       },
       {
         id: 'podcast-thumbnail',
@@ -132,7 +132,7 @@ export const templates = [
             provider: 'stub-render',
           },
         },
-        position: { x: 960, y: 240 },
+        position: { x: 340, y: 240 },
       },
       {
         id: 'podcast-video',
@@ -149,7 +149,7 @@ export const templates = [
             provider: 'stub-render',
           },
         },
-        position: { x: 1260, y: 240 },
+        position: { x: 440, y: 240 },
       },
       {
         id: 'podcast-publish',
@@ -163,7 +163,7 @@ export const templates = [
             publishTarget: 'internal.media',
           },
         },
-        position: { x: 1560, y: 240 },
+        position: { x: 540, y: 240 },
       }
     ],
     edges: [
@@ -192,7 +192,7 @@ export const templates = [
           templateId: 'form-submitted-trigger',
           config: { event: 'form_submission', formId: 'podcast-script-intake', brandKey: 'newOaksPodcast' },
         },
-        position: { x: 80, y: 240 },
+        position: { x: 40, y: 240 },
       },
       {
         id: 'generate-run-of-show',
@@ -220,7 +220,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 420, y: 240 },
+        position: { x: 140, y: 240 },
       },
       {
         id: 'generate-youtube-desc',
@@ -239,7 +239,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 760, y: 240 },
+        position: { x: 240, y: 240 },
       },
     ],
     edges: [
@@ -265,7 +265,7 @@ export const templates = [
           templateId: 'form-submitted-trigger',
           config: { event: 'form_submission', formId: 'podcast-script-intake', brandKey: 'aioBestAiPodcast' },
         },
-        position: { x: 80, y: 240 },
+        position: { x: 40, y: 240 },
       },
       {
         id: 'resolve-brand-dna',
@@ -284,7 +284,7 @@ export const templates = [
             painPoints: '{{brain.profile.painPoints}}',
           },
         },
-        position: { x: 300, y: 240 },
+        position: { x: 140, y: 240 },
       },
       {
         id: 'aio-generate-script',
@@ -323,7 +323,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 620, y: 240 },
+        position: { x: 240, y: 240 },
       },
       {
         id: 'aio-generate-youtube-desc',
@@ -341,7 +341,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 960, y: 240 },
+        position: { x: 340, y: 240 },
       },
     ],
     edges: [
@@ -368,7 +368,7 @@ export const templates = [
           templateId: 'form-submitted-trigger',
           config: { event: 'form_submission', formIds: ['aio-postbot'] },
         },
-        position: { x: 80, y: 240 },
+        position: { x: 40, y: 240 },
       },
       {
         id: 'curate-article',
@@ -386,7 +386,7 @@ export const templates = [
             provider: 'stub-script',
           },
         },
-        position: { x: 420, y: 240 },
+        position: { x: 140, y: 240 },
       },
       {
         id: 'facebook-branch',
@@ -402,7 +402,7 @@ export const templates = [
             imageStyle: '{{formData.imageStyle}}',
           },
         },
-        position: { x: 760, y: 60 },
+        position: { x: 240, y: 60 },
       },
       {
         id: 'instagram-branch',
@@ -418,7 +418,7 @@ export const templates = [
             imageStyle: '{{formData.imageStyle}}',
           },
         },
-        position: { x: 760, y: 240 },
+        position: { x: 240, y: 240 },
       },
       {
         id: 'x-branch',
@@ -433,7 +433,7 @@ export const templates = [
             articleSummary: '{{previous.articleSummary}}',
           },
         },
-        position: { x: 760, y: 420 },
+        position: { x: 240, y: 420 },
       },
       {
         id: 'linkedin-branch',
@@ -449,7 +449,7 @@ export const templates = [
             imageStyle: '{{formData.imageStyle}}',
           },
         },
-        position: { x: 760, y: 600 },
+        position: { x: 240, y: 600 },
       },
       {
         id: 'youtube-audio-branch',
@@ -467,7 +467,7 @@ export const templates = [
             publishToYouTube: '{{formData.publishToYouTube}}',
           },
         },
-        position: { x: 760, y: 780 },
+        position: { x: 240, y: 780 },
       },
     ],
     edges: [

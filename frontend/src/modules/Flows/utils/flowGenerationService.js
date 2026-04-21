@@ -40,11 +40,11 @@ export const generateFlowFromIntent = async (alphaPlan) => {
 
   // Trigger Node
   const triggerTemplate = NODE_TEMPLATES[trigger] || NODE_TEMPLATES['manual-trigger'];
-  const triggerNode = createNode(triggerTemplate, { x: 120, y: 160 });
+  const triggerNode = createNode(triggerTemplate, { x: 40, y: 160 });
   nodes.push(triggerNode);
 
   // Action Nodes
-  let currentX = 250;
+  let currentX = 140;
   let lastNodeId = triggerNode.id;
 
   actions.forEach((actionKey, index) => {
@@ -63,7 +63,7 @@ export const generateFlowFromIntent = async (alphaPlan) => {
     });
 
     lastNodeId = actionNode.id;
-    currentX += 130;
+    currentX += 100;
   });
 
   nodes.push(...createDocumentationNoteNodes(nodes));

@@ -189,99 +189,97 @@ const getDocumentationNoteSourceId = (noteNode, flowNodeIds = new Set()) => {
 
 const layoutNodesLeftToRight = (nodes, edges) => {
   if (!nodes || nodes.length === 0) return nodes;
-  const lockedNodes = nodes.filter((node) => node.type === 'frame' || node.type === 'note');
-  const flowNodes = nodes.filter((node) => node.type !== 'frame' && node.type !== 'note');
+
+  // Step 1: Filter targets
+  const flowNodes = nodes.filter((n) => !n.data?.isGhost && n.type !== 'frame' && n.type !== 'note');
+  const frameNodes = nodes.filter((n) => n.type === 'frame');
+  const noteNodes = nodes.filter((n) => n.type === 'note');
+
   if (flowNodes.length === 0) return nodes;
 
-  const adj = new Map();
-  const inDeg = new Map();
-  flowNodes.forEach((node) => {
-    adj.set(node.id, []);
-    inDeg.set(node.id, 0);
-  });
+  // Step 2: Order Preservation
+  // Sort real nodes by current X position to determine column index
+  const sortedFlowNodes = [...flowNodes].sort((a, b) => a.position.x - b.position.x);
 
-  edges.forEach((edge) => {
-    if (!adj.has(edge.source) || !inDeg.has(edge.target)) return;
-    adj.get(edge.source).push(edge.target);
-    inDeg.set(edge.target, (inDeg.get(edge.target) || 0) + 1);
-  });
+  // Group into columns using a proximity threshold (e.g., 60px) to preserve vertical grouping
+  const columns = [];
+  const startX = 40;
+  const colThreshold = 60;
 
-  const depth = new Map();
-  const queue = [];
-  inDeg.forEach((deg, id) => {
-    if (deg === 0) {
-      depth.set(id, 0);
-      queue.push(id);
+  let lastX = -Infinity;
+  let currentCol = [];
+
+  for (const node of sortedFlowNodes) {
+    if (Math.abs(node.position.x - lastX) < colThreshold) {
+      currentCol.push(node);
+    } else {
+      if (currentCol.length > 0) columns.push(currentCol);
+      currentCol = [node];
+      lastX = node.position.x;
     }
-  });
-
-  while (queue.length > 0) {
-    const id = queue.shift();
-    const currentDepth = depth.get(id) ?? 0;
-    (adj.get(id) || []).forEach((next) => {
-      const nextDepth = Math.max(depth.get(next) ?? 0, currentDepth + 1);
-      depth.set(next, nextDepth);
-      inDeg.set(next, (inDeg.get(next) || 0) - 1);
-      if (inDeg.get(next) === 0) queue.push(next);
-    });
   }
+  if (currentCol.length > 0) columns.push(currentCol);
 
-  let maxDepth = 0;
-  depth.forEach((value) => { if (value > maxDepth) maxDepth = value; });
-  flowNodes.forEach((node, index) => {
-    if (!depth.has(node.id)) {
-      depth.set(node.id, maxDepth + 1 + index);
-    }
-  });
+  // Step 3 & 4: Apply Tighter Horizontal Spacing & Preserve Vertical Structure
+  const positionedNodes = new Map(nodes.map(n => [n.id, { ...n }]));
 
-  const columns = new Map();
-  flowNodes.forEach((node) => {
-    const d = depth.get(node.id) || 0;
-    if (!columns.has(d)) columns.set(d, []);
-    columns.get(d).push(node);
-  });
+  // No-overlap constants
+  const defaultSpacingX = 100; // Tight default center-to-center feel
+  const minimumGap = 24;       // Minimum clear space between node bodies
 
-  const xGap = 130;
-  const yGap = 95;
-  const xOffset = 120;
-  const yOffset = 120;
+  const getNodeWidth = (node) => {
+    if (node.measured?.width) return node.measured.width;
+    if (node.width) return node.width;
+    if (node.type === 'note') return 280;
+    if (node.type === 'frame') return 320;
+    return 70; // Sensible default for CustomNode circle + side labels
+  };
 
-  const nextNodes = flowNodes.map((node) => ({ ...node }));
-  const nodeIndex = new Map(nextNodes.map((node) => [node.id, node]));
-  Array.from(columns.keys()).sort((a, b) => a - b).forEach((col) => {
-    const colNodes = columns.get(col) || [];
-    colNodes.forEach((node, i) => {
-      const target = nodeIndex.get(node.id);
+  let currentX = startX;
+
+  columns.forEach((col, colIndex) => {
+    // 1. Process current column
+    col.forEach(node => {
+      const target = positionedNodes.get(node.id);
       if (target) {
         target.position = {
-          x: xOffset + col * xGap,
-          y: yOffset + i * yGap,
+          x: currentX,
+          y: node.position.y // Preserve relative vertical relationships
         };
       }
     });
+
+    // 2. Advance X for next column with no-overlap guard
+    if (colIndex < columns.length - 1) {
+      const nextCol = columns[colIndex + 1];
+      const maxColWidth = Math.max(...col.map(n => getNodeWidth(n)));
+
+      // Rule: Tight layout but enforced body clearance
+      const requiredStep = Math.max(defaultSpacingX, maxColWidth + minimumGap);
+      currentX += requiredStep;
+    }
   });
 
-  const positionedNodes = new Map(nextNodes.map((node) => [node.id, node]));
-  const flowNodeIds = new Set(nextNodes.map((node) => node.id));
-  lockedNodes.forEach((node) => {
-    const anchoredSourceId = node.type === 'note' ? getDocumentationNoteSourceId(node, flowNodeIds) : '';
+  // Step 5: Handle specialized nodes (Notes anchored to flow nodes)
+  const flowNodeIds = new Set(flowNodes.map(n => n.id));
+  noteNodes.forEach(node => {
+    const anchoredSourceId = getDocumentationNoteSourceId(node, flowNodeIds);
     if (anchoredSourceId) {
       const anchorNode = positionedNodes.get(anchoredSourceId);
       const noteWidth = Number(node?.data?.width || node?.style?.width || 228);
-      const nextPosition = {
-        x: (anchorNode?.position?.x || 0) - Math.round((noteWidth - 72) / 2),
-        y: (anchorNode?.position?.y || 0) + 110,
-      };
-      positionedNodes.set(node.id, {
-        ...node,
-        position: nextPosition,
-      });
-      return;
+      if (anchorNode) {
+        positionedNodes.get(node.id).position = {
+          x: anchorNode.position.x - Math.round((noteWidth - 72) / 2),
+          y: anchorNode.position.y + 110,
+        };
+      }
     }
-    positionedNodes.set(node.id, { ...node });
   });
 
-  return nodes.map((node) => positionedNodes.get(node.id) || { ...node });
+  // Frames and non-anchored notes remain at their original relative offsets or absolute positions
+  // (In a true "Align Nodes", we might want to shift them, but per instructions we keep them from distorting spacing)
+
+  return nodes.map(n => positionedNodes.get(n.id) || { ...n });
 };
 
 const normalizeRunInspector = (result, meta = {}) => {
@@ -400,7 +398,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       if (updater === null) {
         return nds.map(n => n.selected ? { ...n, selected: false } : n);
       }
-      
+
       const sNode = nds.find(n => n.selected);
       if (typeof updater === 'function') {
         if (!sNode) return nds;
@@ -469,6 +467,104 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const timestamp = new Date().toLocaleTimeString();
     setTerminalLogs(prev => [...prev.slice(-99), { timestamp, message, type }]);
   }, []);
+
+  // Undo History State (50 steps)
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isInternalUpdate = useRef(false);
+
+  const takeSnapshot = useCallback(() => {
+    if (isInternalUpdate.current) return;
+    
+    // We snapshot name, nodes, and edges
+    const snapshot = {
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+      name: flow?.name || 'Untitled Flow',
+    };
+
+    setHistory(prev => {
+      // If we're at the end of history, just push
+      // If we're in the middle (after undos), truncate and push
+      const truncated = prev.slice(0, historyIndex + 1);
+      
+      // Check if identical to last snapshot to avoid redundancy
+      if (truncated.length > 0) {
+        const last = truncated[truncated.length - 1];
+        if (JSON.stringify(last.nodes) === JSON.stringify(snapshot.nodes) && 
+            JSON.stringify(last.edges) === JSON.stringify(snapshot.edges) &&
+            last.name === snapshot.name) {
+          return prev;
+        }
+      }
+
+      const next = [...truncated, snapshot];
+      if (next.length > 50) next.shift();
+      return next;
+    });
+    setHistoryIndex(prev => {
+      const nextIdx = prev + 1;
+      return nextIdx > 49 ? 49 : nextIdx;
+    });
+  }, [nodes, edges, flow?.name, historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    isInternalUpdate.current = true;
+    const prevIdx = historyIndex - 1;
+    const snapshot = history[prevIdx];
+    
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setFlow(prev => ({ ...prev, name: snapshot.name }));
+    setHistoryIndex(prevIdx);
+    
+    logToTerminal('Undo performed.', 'warning');
+    setTimeout(() => { isInternalUpdate.current = false; }, 50);
+  }, [history, historyIndex, setNodes, setEdges, logToTerminal]);
+
+  const redo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return;
+    isInternalUpdate.current = true;
+    const nextIdx = historyIndex + 1;
+    const snapshot = history[nextIdx];
+    
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setFlow(prev => ({ ...prev, name: snapshot.name }));
+    setHistoryIndex(nextIdx);
+
+    logToTerminal('Redo performed.', 'success');
+    setTimeout(() => { isInternalUpdate.current = false; }, 50);
+  }, [history, historyIndex, setNodes, setEdges, logToTerminal]);
+
+  // Initial snapshot after load
+  useEffect(() => {
+    if (!loading && history.length === 0 && nodes.length > 0) {
+      takeSnapshot();
+    }
+  }, [loading, nodes.length, history.length, takeSnapshot]);
+
+  // Keyboard support for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+
 
   useEffect(() => {
     setCustomTemplates(getStoredCustomTemplates());
@@ -751,7 +847,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
       const convertedFlow = result.convertedFlow;
       const templateId = String(convertedFlow.id || `imported-${Date.now()}`);
-      
+
       const template = {
         id: templateId,
         name: convertedFlow.name || file.name.replace(/\.json$/i, ''),
@@ -777,10 +873,22 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [showNotice]);
 
 
-  const createGhostStarterNode = () => ({
-    id: 'ghost-starter',
-    type: 'trigger',
-    position: { x: 240, y: 220 },
+  const createGhostStarterNode = () => {
+    let x = 600;
+    let y = 350;
+    
+    if (typeof window !== 'undefined') {
+      // Approximate center of the Flow canvas area (accounting for sidebars)
+      const canvasWidth = Math.max(600, window.innerWidth - 600);
+      const canvasHeight = Math.max(500, window.innerHeight - 100);
+      x = Math.round(canvasWidth / 2);
+      y = Math.round(canvasHeight / 2) - 50; // Slight visual upward shift looks better
+    }
+
+    return {
+      id: 'ghost-starter',
+      type: 'trigger',
+      position: { x, y },
     data: {
       label: 'Add your first ...',
       description: '',
@@ -791,7 +899,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     },
     sourcePosition: 'right',
     targetPosition: 'left',
-  });
+  };
+};
 
   const getViewportPlacement = useCallback((offset = { x: 0, y: 0 }) => {
     if (reactFlowWrapper.current && reactFlowInstance) {
@@ -810,7 +919,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Initialize flow on mount - run ONLY once per flowId
   useEffect(() => {
     let active = true;
-    
+
     const initFlow = async () => {
       try {
         let flowData;
@@ -832,12 +941,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
 
         // Debug: Log loaded flow structure for validation debugging
-        console.log('[FlowBuilder] Loaded flow:', { 
-          id: flowData?.id, 
-          name: flowData?.name, 
-          nodeCount: flowData?.nodes?.length || 0, 
+        console.log('[FlowBuilder] Loaded flow:', {
+          id: flowData?.id,
+          name: flowData?.name,
+          nodeCount: flowData?.nodes?.length || 0,
           edgeCount: flowData?.edges?.length || 0,
-          sourceTemplateId: flowData?.metadata?.sourceTemplateId 
+          sourceTemplateId: flowData?.metadata?.sourceTemplateId
         });
 
         // 0. Dynamic Flow Generation (Alpha Orchestration Layer)
@@ -859,7 +968,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
         const isNewBlankFlow = !flowId && sourceDataNodes.length === 0;
         const isMediaIntent = intent === 'podcast-pipeline' || action === 'create_media_pipeline';
-        
+
         if (isNewBlankFlow && isMediaIntent) {
           const template = templates.find(t => t.id === 'podcast-pipeline');
           if (template) {
@@ -882,19 +991,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
         if (initialResult.validation.blockers.length === 0) {
           if (initialResult.nodes.length > 0) {
-            // Restore correct placement: Skip auto-layout for designated Media Pipeline templates to maintain horizontal structure
-            // Also detect by: template ID, flow name
-            const isMediaPipeline = forceTemplateApplied || 
-                                   flowData?.metadata?.sourceTemplateId === 'podcast-pipeline' || 
-                                   flowData?.name === 'Media Pipeline';
-            
-            if (isMediaPipeline) {
-              setNodes(initialResult.nodes);
-            } else {
-              setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
-            }
+            setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
             setEdges(normalizeEdges(initialResult.edges));
-          } else if (!flowId) {
+          } else if (sourceDataNodes.length === 0 && !forceTemplateApplied) {
             setNodes([createGhostStarterNode()]);
             setEdges([]);
           } else {
@@ -906,9 +1005,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           console.warn('Flow validation blockers:', initialResult.validation.blockers);
           if (initialResult.nodes.length > 0) {
             // Even with validation blockers, attempt to show the nodes for debugging
-            setNodes(initialResult.nodes);
+            setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
             setEdges(normalizeEdges(initialResult.edges));
-          } else if (!flowId) {
+          } else if (sourceDataNodes.length === 0 && !forceTemplateApplied) {
             setNodes([createGhostStarterNode()]);
             setEdges([]);
           } else {
@@ -951,8 +1050,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
       setEdges(normalizeEdges(result.edges));
       setIsDirty(true);
+      takeSnapshot();
     },
-    [setEdges, nodes, edges, mutateBuilderFlowGraph]
+    [setEdges, nodes, edges, mutateBuilderFlowGraph, takeSnapshot]
   );
 
 
@@ -998,7 +1098,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     setNodes(result.nodes);
     setLastAddedPosition(position);
     setIsDirty(true);
-  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
+    takeSnapshot();
+  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph, takeSnapshot]);
 
 
   const handleDeleteSelectedNodes = useCallback((explicitNodeIds = null) => {
@@ -1037,6 +1138,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setNodes(nextNodes);
       setEdges(normalizeEdges(nextEdges));
       setIsDirty(true);
+      takeSnapshot();
     } else {
       console.warn('This flow is system-managed and cannot be modified.');
     }
@@ -1063,7 +1165,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       try {
         const nodeTemplate = JSON.parse(nodeDataStr);
         console.log('[onDrop] Node template:', nodeTemplate.id, nodeTemplate.type);
-        
+
         const position = reactFlowInstance?.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY,
@@ -1077,11 +1179,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           payload: { nodeTemplate, position }
         }, !canEditFlow);
 
-        if (result?.__blocked) { 
-          console.warn('Cannot add nodes: flow is not editable'); 
-          return; 
+        if (result?.__blocked) {
+          console.warn('Cannot add nodes: flow is not editable');
+          return;
         }
-        
+
         setNodes(result.nodes);
         setIsDirty(true);
       } catch (error) {
@@ -1125,6 +1227,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     (event, node) => {
       event.preventDefault();
       if (node?.data?.isGhost) return;
+      setSelectedNode(node);
       setNodeMenu({
         id: node.id,
         node,
@@ -1132,7 +1235,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         y: event.clientY,
       });
     },
-    [setNodeMenu]
+    [setNodeMenu, setSelectedNode]
   );
 
   const onPaneClick = useCallback(() => {
@@ -1187,7 +1290,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
         setEdges(normalizeEdges(result.edges));
       } else {
-        setNodes([createGhostStarterNode()]);
+        setNodes([]);
         setEdges([]);
       }
       setFlow((prev) => ({
@@ -1259,10 +1362,14 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
     setNodes((nds) => {
       const sanitized = nds.filter(n => !n.data?.isGhost);
-      return [...sanitized, ...result.nodes];
+      const nextNodes = [...sanitized, ...result.nodes];
+
+      // Task 1: Normalize template layout using deterministic fixed-spacing rules
+      return layoutNodesLeftToRight(nextNodes, [...edges, ...result.edges]);
     });
     setEdges((eds) => normalizeEdges([...eds, ...result.edges]));
     setIsDirty(true);
+    takeSnapshot();
 
     setShowMappingModal(false);
     setMappingTemplate(null);
@@ -1293,19 +1400,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [logToTerminal]);
 
-  const buildPersistableFlow = useCallback(({ asNew = false } = {}) => {
+  const buildPersistableFlow = useCallback(({ asNew = false, forcedName = null } = {}) => {
     if (!flow) return null;
 
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
-    
-    // Strip transient UI/runtime fields to prevent Data-shape drift
+
+    // Strip only transient UI flags to prevent Data-shape drift while keeping render-critical properties
     const cleanedNodes = sanitizedNodes.map(node => {
-      const { selected, dragging, positionAbsolute, width, height, resizing, measured, style, className, sourcePosition, targetPosition, ...cleanNode } = node;
+      const { selected, dragging, ...cleanNode } = node;
       return cleanNode;
     });
-    
+
     const cleanedEdges = sanitizedEdges.map(edge => {
-      const { selected, animated, style, className, ...cleanEdge } = edge;
+      const { selected, animated, ...cleanEdge } = edge;
       return cleanEdge;
     });
 
@@ -1314,7 +1421,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     setValidationResult(result);
 
     const now = new Date().toISOString();
-    const resolvedName = String(flow.name || 'Untitled Flow').trim() || 'Untitled Flow';
+    const resolvedName = forcedName || String(flow.name || '').trim();
+    if (!resolvedName || (typeof resolvedName === 'string' && resolvedName.toLowerCase() === 'untitled flow')) {
+      // This case should be caught by the UI before calling buildPersistableFlow,
+      // but we use 'Untitled Flow' as a safety fallback if somehow bypassed.
+    }
+    const finalName = resolvedName || 'Untitled Flow';
     const nextMetadata = {
       ...(flow.metadata || {}),
       nodeCount: cleanedNodes.filter(n => n.type !== 'note' && n.type !== 'frame').length,
@@ -1327,12 +1439,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         const c = n.data?.config || {};
         return Array.isArray(c.formIds) ? c.formIds : (c.formId ? [c.formId] : []);
       });
-    
+
     const inputFormIds = sanitizedNodes
       .filter(n => n.type === 'input')
       .map(n => n.data?.config?.formId || n.data?.config?.existingFormId)
       .filter(Boolean);
-      
+
     nextMetadata.formIds = Array.from(new Set([...formTriggerIds, ...inputFormIds]));
 
     if (asNew) {
@@ -1354,7 +1466,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       updatedFlow: {
         ...flow,
         ...(asNew ? { id: undefined, createdAt: now, status: 'Draft' } : {}),
-        name: asNew ? `${resolvedName} Copy` : resolvedName,
+        name: asNew ? `${finalName} Copy` : finalName,
         nodes: cleanedNodes,
         edges: cleanedEdges,
         spec,
@@ -1377,27 +1489,23 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Track previous validation to prevent unnecessary updates
   const prevValidationRef = useRef(null);
   const mountedRef = useRef(false);
-  
+
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
-  
+
   useEffect(() => {
     if (!flow || !mountedRef.current) return;
-    
+
     // Preserve ghost starter node - ensure it's always in the nodes array
     const hasGhost = nodes.some(n => n.data?.isGhost);
     const hasRealNodes = nodes.some(n => !n.data?.isGhost);
-    
+
     if (!hasGhost && !hasRealNodes) {
-      if (!flow.id) {
-        // Empty graph - insert ghost starter
-        setNodes([createGhostStarterNode()]);
-      }
       return;
     }
-    
+
     const newValidation = collectValidation();
     // Only update if validation actually changed (compare serialized)
     const newSerialized = JSON.stringify(newValidation);
@@ -1408,21 +1516,39 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [flow, nodes, edges, collectValidation]);
 
   // Handle save flow
-  const handleSaveFlow = useCallback(async () => {
+  const [showNamingModal, setShowNamingModal] = useState(false);
+  const [namingPendingAction, setNamingPendingAction] = useState(null); // 'save' or 'saveAsNew'
+  const [newFlowName, setNewFlowName] = useState('');
+
+  const handleSaveFlow = useCallback(async (forcedNameParam) => {
     if (!flow) return;
+
+    // Safety check: Ensure forcedName is a string, not a React Event
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
+    // Naming Rule: Absolute naming enforcement before save
+    const currentName = forcedName || flow.name || '';
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled flow') {
+      setNewFlowName(currentName);
+      setNamingPendingAction('save');
+      setShowNamingModal(true);
+      return;
+    }
+
+    if (forcedName) {
+      handleFlowUpdate({ name: forcedName });
+    }
+
     if (isTemplateDerivedFlow) {
       blockTemplateDerivedSave('Save');
       return;
     }
 
-    const preparedFlow = buildPersistableFlow();
+    const preparedFlow = buildPersistableFlow({ forcedName });
     if (!preparedFlow) return;
     const { result, updatedFlow } = preparedFlow;
-    if (result.blockers.length > 0) {
-      pushValidationToTerminal('Save blocked', result);
-      showNotice({ type: 'error', message: 'Save blocked. Review the validation messages in the terminal.' });
-      return;
-    }
+
+    // SAVE must NEVER be blocked per mission requirements. Validation enforcement moved to Execution Layer.
 
     try {
       const savedFlow = await flowRepository.saveFlow(updatedFlow);
@@ -1432,11 +1558,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
       }
       setIsDirty(false);
-      showNotice({ type: 'success', message: `Saved ${persistedFlow?.name || updatedFlow.name}.` });
-      if (result.warnings.length > 0) {
-        pushValidationToTerminal('Saved with warnings', result);
+
+      if (result.blockers.length > 0) {
+        pushValidationToTerminal('Saved with blockers', result);
+        showNotice({ type: 'warning', message: `${updatedFlow.name || 'Flow'} SAVED as DRAFT` });
       } else {
         logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+        showNotice({ type: 'success', message: `${updatedFlow.name || 'Flow'} SAVED` });
       }
     } catch (error) {
       console.error('Failed to save flow:', error);
@@ -1446,17 +1574,28 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [blockTemplateDerivedSave, buildPersistableFlow, flow, isTemplateDerivedFlow, logToTerminal, onFlowContextChange, pushValidationToTerminal, showNotice]);
 
-  const handleSaveAsNewFlow = useCallback(async () => {
+  const handleSaveAsNewFlow = useCallback(async (forcedNameParam) => {
     if (!flow) return;
 
-    const preparedFlow = buildPersistableFlow({ asNew: true });
-    if (!preparedFlow) return;
-    const { result, updatedFlow } = preparedFlow;
-    if (result.blockers.length > 0) {
-      pushValidationToTerminal('Save As New blocked', result);
-      showNotice({ type: 'error', message: 'Save As New blocked. Review the validation messages in the terminal.' });
+    // Safety check: Ensure forcedName is a string, not a React Event
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
+    // Naming Rule: Absolute naming enforcement before save-as-new
+    const currentName = forcedName || flow.name || '';
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled flow') {
+      setNewFlowName(currentName);
+      setNamingPendingAction('saveAsNew');
+      setShowNamingModal(true);
       return;
     }
+
+    if (forcedName) {
+      handleFlowUpdate({ name: forcedName });
+    }
+
+    const preparedFlow = buildPersistableFlow({ asNew: true, forcedName });
+    if (!preparedFlow) return;
+    const { result, updatedFlow } = preparedFlow;
 
     try {
       const savedFlow = await flowRepository.saveFlow(updatedFlow);
@@ -1466,10 +1605,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
       }
       setIsDirty(false);
-      showNotice({ type: 'success', message: `Saved new flow ${persistedFlow?.name || updatedFlow.name}.` });
-      logToTerminal(`Saved new flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
-      if (result.warnings.length > 0) {
-        pushValidationToTerminal('Saved as new with warnings', result);
+
+      if (result.blockers.length > 0) {
+        pushValidationToTerminal('Saved as new with blockers', result);
+        showNotice({ type: 'warning', message: `${updatedFlow.name || 'Flow'} SAVED as DRAFT` });
+      } else {
+        logToTerminal(`Created new flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+        showNotice({ type: 'success', message: `${updatedFlow.name || 'Flow'} SAVED` });
       }
     } catch (error) {
       console.error('Failed to save flow as new:', error);
@@ -1493,38 +1635,48 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [logToTerminal, onFlowContextChange, showNotice]);
 
-  const persistCurrentFlow = useCallback(async ({ silentSuccess = false } = {}) => {
+  const persistCurrentFlow = useCallback(async ({ silentSuccess = false, forcedNameParam = null } = {}) => {
     if (!flow) return null;
+
+    // Safety check: Ensure forcedName is a string
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
     if (isTemplateDerivedFlow) {
       blockTemplateDerivedSave('Run');
       return null;
     }
 
-    const preparedFlow = buildPersistableFlow();
+    const preparedFlow = buildPersistableFlow({ forcedName });
     if (!preparedFlow) return null;
     const { result, updatedFlow } = preparedFlow;
-    if (result.blockers.length > 0) {
-      pushValidationToTerminal('Run blocked', result);
-      showNotice({ type: 'error', message: 'Run blocked. Review the validation messages in the terminal.' });
+
+    // SAVE must NEVER be blocked. Validation enforcement moved to Execution Layer.
+
+    try {
+      const savedFlow = await flowRepository.saveFlow(updatedFlow);
+      const persistedFlow = savedFlow || updatedFlow;
+      setFlow(persistedFlow);
+      if (persistedFlow?.id) {
+        onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
+      }
+      setIsDirty(false);
+      if (!silentSuccess) {
+        if (result.blockers.length > 0) {
+          pushValidationToTerminal('Saved with blockers', result);
+          showNotice({ type: 'warning', message: `${updatedFlow.name || 'Flow'} SAVED as DRAFT` });
+        } else {
+          logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+          showNotice({ type: 'success', message: `${updatedFlow.name || 'Flow'} SAVED` });
+        }
+      }
+      return { flow: persistedFlow, validation: result };
+    } catch (error) {
+      console.error('Failed to persist flow:', error);
+      if (!silentSuccess) {
+        showNotice({ type: 'error', message: error.message || 'Auto-save failed.' });
+      }
       return null;
     }
-
-    const savedFlow = await flowRepository.saveFlow(updatedFlow);
-    const persistedFlow = savedFlow || updatedFlow;
-    setFlow(persistedFlow);
-    if (persistedFlow?.id) {
-      onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
-    }
-    setIsDirty(false);
-    if (!silentSuccess) {
-      if (result.warnings.length > 0) {
-        pushValidationToTerminal('Saved with warnings', result);
-      } else {
-        logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
-        showNotice({ type: 'success', message: `Saved ${persistedFlow?.name || updatedFlow.name}.` });
-      }
-    }
-    return persistedFlow;
   }, [blockTemplateDerivedSave, buildPersistableFlow, flow, isTemplateDerivedFlow, logToTerminal, onFlowContextChange, pushValidationToTerminal, showNotice]);
 
   const logFlowRunResult = useCallback((result) => {
@@ -1603,11 +1755,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   // Fetch provider connection statuses when flow loads
   const providerStatusFetchedRef = useRef(false);
-  
+
   useEffect(() => {
     if (!flow?.id || providerStatusFetchedRef.current) return;
     providerStatusFetchedRef.current = true;
-    
+
     getFlowProviderStatusesApi(flow.id)
       .then((data) => {
         // Only update if we have actual data (not 401/unauthorized)
@@ -1627,12 +1779,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Inject provider connection status into provider-dependent nodes
   // Only run once per providerStatuses change, not on every setNodes call
   const providerStatusInjectedRef = useRef(false);
-  
+
   useEffect(() => {
     if (!Object.keys(providerStatuses).length) return;
     if (providerStatusInjectedRef.current) return; // Prevent re-injection
     providerStatusInjectedRef.current = true;
-    
+
     const PROVIDER_NODE_INTENTS = new Set(['publish_asset', 'generate_postbot_content', 'postbot_content']);
     setNodes((currentNodes) => currentNodes.map((node) => {
       const config = node.data?.config || {};
@@ -1769,8 +1921,25 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [compareRunDetail?.runId, logToTerminal]);
 
-  const handleRunFlow = useCallback(async () => {
+  const handleRunFlow = useCallback(async (forcedNameParam) => {
     if (!flow || isRunningFlow) return;
+
+    // Safety check: Ensure forcedName is a string
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
+    // Naming Rule: Absolute naming enforcement before run
+    const currentName = forcedName || flow?.name || '';
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled flow') {
+      setNewFlowName(currentName);
+      setNamingPendingAction('run');
+      setShowNamingModal(true);
+      return;
+    }
+
+    if (forcedName) {
+      handleFlowUpdate({ name: forcedName });
+    }
+
     setTerminalOpen(true);
     setIsRunningFlow(true);
     resetExecutionVisuals();
@@ -1787,8 +1956,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       currentNodeId: null,
     }));
     try {
-      const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
-      if (!persistedFlow?.id) {
+      const persistence = await persistCurrentFlow({ silentSuccess: true, forcedNameParam: forcedName });
+      if (!persistence?.flow?.id) {
+        resetExecutionVisuals();
+        setLatestRunDetail(null);
+        return;
+      }
+
+      const { flow: persistedFlow, validation: runValidation } = persistence;
+
+      // RUN is an execution layer action - BLOCK if invalid
+      if (runValidation.blockers.length > 0) {
+        pushValidationToTerminal('Run blocked', runValidation);
+        showNotice({ type: 'error', message: 'Run blocked. Review validation errors in terminal.' });
         resetExecutionVisuals();
         setLatestRunDetail(null);
         return;
@@ -1845,8 +2025,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const runId = createClientRunId();
     setLiveExecutionRunId(runId);
     try {
-      const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
-      if (!persistedFlow?.id) {
+      const persistence = await persistCurrentFlow({ silentSuccess: true });
+      if (!persistence?.flow?.id) {
+        resetExecutionVisuals();
+        return;
+      }
+
+      const { flow: persistedFlow, validation: rerunValidation } = persistence;
+
+      // RERUN is an execution layer action - BLOCK if invalid
+      if (rerunValidation.blockers.length > 0) {
+        pushValidationToTerminal('Rerun blocked', rerunValidation);
+        showNotice({ type: 'error', message: 'Rerun blocked. Review validation errors in terminal.' });
         resetExecutionVisuals();
         return;
       }
@@ -1929,8 +2119,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [flow, getSanitizedGraph, showNotice]);
 
   // Handle toggle flow status
-  const handleToggleStatus = useCallback(async () => {
+  const handleToggleStatus = useCallback(async (forcedNameParam) => {
     if (!flow) return;
+
+    // Safety check: Ensure forcedName is a string
+    const forcedName = typeof forcedNameParam === 'string' ? forcedNameParam : null;
+
     if (isTemplateDerivedFlow) {
       blockTemplateDerivedSave('Activation');
       return;
@@ -1939,12 +2133,33 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setShowDeactivateModal(true);
       return;
     }
+    // Naming Rule: Absolute naming enforcement before activation
+    const currentName = forcedName || flow?.name || '';
+    if (!currentName.trim() || currentName.toLowerCase() === 'untitled flow') {
+      setNewFlowName(currentName);
+      setNamingPendingAction('activate'); // Will trigger handleToggleStatus again after naming
+      setShowNamingModal(true);
+      return;
+    }
+
+    if (forcedName) {
+      handleFlowUpdate({ name: forcedName });
+    }
+
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
     const result = validateBuilderSpec(spec);
     setValidationResult(result);
-    if (result.blockers.length > 0 || result.warnings.length > 0) {
-      pushValidationToTerminal('Activation check', result);
+
+    // ACTIVATE is an execution/deployment layer action - BLOCK if invalid
+    if (result.blockers.length > 0) {
+      pushValidationToTerminal('Activation blocked', result);
+      showNotice({ type: 'error', message: 'Activation blocked. Review validation errors in terminal.' });
+      return;
+    }
+
+    if (result.warnings.length > 0) {
+      pushValidationToTerminal('Activation warnings', result);
     }
     setShowActivateModal(true);
   }, [blockTemplateDerivedSave, flow, getSanitizedGraph, isTemplateDerivedFlow, pushValidationToTerminal, validateBuilderSpec]);
@@ -1953,6 +2168,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (!flow) return;
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
+
+    // Safety check: Final hard block on malformed specimen
+    const finalCheck = validateBuilderSpec(spec);
+    if (finalCheck.blockers.length > 0) {
+      pushValidationToTerminal('Deployment failed', finalCheck);
+      showNotice({ type: 'error', message: 'Deployment failed. Spec is invalid.' });
+      setShowActivateModal(false);
+      return;
+    }
+
     const updatedFlow = {
       ...flow,
       status: 'Active',
@@ -2002,8 +2227,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       };
       setFlow(updatedFlow);
       setIsDirty(true);
+      if (updates.name) takeSnapshot();
     },
-    [flow]
+    [flow, takeSnapshot]
   );
 
   if (loading) {
@@ -2119,6 +2345,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onSaveAsNew={handleSaveAsNewFlow}
         onBrowseTemplates={() => setShowTemplateLibrary(true)}
         onImport={handleImportFlow}
+        onFlowUpdate={handleFlowUpdate}
       />
 
       <div className="module-content-stage relative flex flex-col gap-1.5 overflow-hidden px-1.5 pb-1.5">
@@ -2128,184 +2355,202 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           </div>
         )}
 
-      {/* Main Layout: 3 Columns */}
-      <div className="module-surface-shell relative flex flex-1 overflow-hidden bg-[var(--color-bg-primary)]">
+        {/* Main Layout: 3 Columns */}
+        <div className="module-surface-shell relative flex flex-1 overflow-hidden bg-[var(--color-bg-primary)]">
 
-        {/* LEFT: Node & Template Library */}
-        <div
-          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${leftPanelOpen ? 'w-64' : 'w-0 border-none m-0 shadow-none'}`}
-        >
-          <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
-            <button
-              onClick={() => setLeftPanelTab('nodes')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
-            >
-              Nodes
-            </button>
-            <button
-              onClick={() => setLeftPanelTab('templates')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
-            >
-              Templates
-            </button>
-          </div>
-
-          <div className="p-2 border-b border-[var(--color-border)] px-3">
-            <button
-              onClick={() => setShowAiModal(true)}
-              className="btn-secondary w-full flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-bold uppercase tracking-widest"
-            >
-              <Target className="w-3.5 h-3.5 text-sky-400" />
-              AI Generate Flow
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto crm-scroll-hidden">
-            {leftPanelTab === 'nodes' ? (
-              <NodeLibraryPanel
-                embedded
-                onAddNode={handleLibraryAdd}
-                onAddNodeAtViewport={handleLibraryAddAtViewport}
-              />
-            ) : (
-              <TemplateLibraryPanel
-                onApplyTemplate={applyTemplate}
-                onPreviewTemplate={(template) => console.log('Preview:', template)}
-                customTemplates={customTemplates}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* CENTER: Canvas Wrapper */}
-        <div className="flex-1 relative overflow-hidden bg-[var(--color-bg-primary)]" ref={reactFlowWrapper}>
-
-
-
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onInit={(instance) => {
-              setReactFlowInstance(instance);
-              viewportRef.current = instance.getViewport();
-            }}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeClick={onNodeClick}
-            onNodeDragStart={onNodeDragStart}
-            onPaneClick={onPaneClick}
-            onEdgeClick={onEdgeClick}
-            onNodeDoubleClick={onNodeDoubleClick}
-            onNodeContextMenu={onNodeContextMenu}
-            onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
-            onEdgeContextMenu={onEdgeContextMenu}
-            nodeTypes={nodeTypes}
-            deleteKeyCode={['Backspace', 'Delete']}
-            onNodesDelete={(deletedNodes) => {
-              handleDeleteSelectedNodes(deletedNodes.map(n => n.id));
-            }}
-            fitView={!nodes.some(n => n.data?.isGhost)}
-            connectionRadius={40}
-            proOptions={{ hideAttribution: true }}
-            defaultEdgeOptions={{
-              type: 'smoothstep',
-              animated: false,
-              style: {
-                stroke: 'var(--color-accent)',
-                strokeWidth: 2,
-                strokeDasharray: EDGE_DASH_PATTERN,
-                filter: 'none',
-              },
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: 'var(--color-accent)',
-              },
-              label: '\u2699',
-              labelStyle: { fill: 'rgba(148,163,184,0.7)', fontSize: 12 },
-              labelBgStyle: { fill: 'transparent' },
-              labelBgPadding: [0, 0],
-            }}
-            snapToGrid={true}
-            snapGrid={[8, 8]}
+          {/* LEFT: Node & Template Library */}
+          <div
+            className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${leftPanelOpen ? 'w-64' : 'w-0 border-none m-0 shadow-none'}`}
           >
-            {/* Grid points hidden per request, snapping active at 8px for tactile feedback */}
-
-            {/* Minimap Removed as per user request */}
-            <div className="flow-control-dock">
-              <Controls showInteractive={false} showFitView={true} className="flow-controls-buttons" />
+            <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
+              <button
+                onClick={() => setLeftPanelTab('nodes')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              >
+                Nodes
+              </button>
+              <button
+                onClick={() => setLeftPanelTab('templates')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              >
+                Templates
+              </button>
             </div>
-          </ReactFlow>
-        </div>
 
-        {/* RIGHT: Inspector Panel */}
-        <div
-          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${rightPanelOpen ? 'w-[340px]' : 'w-0 border-none m-0 shadow-none'}`}
-        >
-          <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
-            <button
-              onClick={() => setRightPanelTab('details')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
-            >
-              Details
-            </button>
-            <button
-              onClick={() => setRightPanelTab('history')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
-            >
-              History
-            </button>
+            <div className="p-2 border-b border-[var(--color-border)] px-3">
+              <button
+                onClick={() => setShowAiModal(true)}
+                className="btn-secondary w-full flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-bold uppercase tracking-widest"
+              >
+                <Target className="w-3.5 h-3.5 text-sky-400" />
+                AI Generate Flow
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto crm-scroll-hidden">
+              {leftPanelTab === 'nodes' ? (
+                <NodeLibraryPanel
+                  embedded
+                  onAddNode={handleLibraryAdd}
+                  onAddNodeAtViewport={handleLibraryAddAtViewport}
+                />
+              ) : (
+                <TemplateLibraryPanel
+                  onApplyTemplate={applyTemplate}
+                  onPreviewTemplate={(template) => console.log('Preview:', template)}
+                  customTemplates={customTemplates}
+                />
+              )}
+            </div>
           </div>
 
-          <div className={`flex-1 overflow-y-auto crm-scroll-hidden flex flex-col relative ${rightPanelOpen ? 'w-[340px]' : 'w-0'}`}>
-            <div className={`flex-1 flex flex-col ${rightPanelTab === 'details' ? 'flex' : 'hidden'}`}>
-              <FlowInfoPanel
-                flow={flow}
-                onFlowUpdate={handleFlowUpdate}
-                onApplyDraft={applyDraftToCanvas}
-                onInsertFormTrigger={insertFormTrigger}
-                onSaveAsTemplate={handleSaveAsTemplate}
-                showDetails={true}
-              />
-              <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
-                <div className="rounded-xl border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.6))] px-4 py-4 text-center shadow-[0_14px_32px_rgba(2,6,23,0.28)]">
-                  <div
-                    className="text-[16px] font-bold uppercase tracking-[0.28em] text-slate-100/90"
-                    style={{ fontFamily: '"Ethnocentric", "Inter", sans-serif' }}
-                  >
-                    {`AIO Flows${TM}`}
+          {/* CENTER: Canvas Wrapper */}
+          <div className="flex-1 relative overflow-hidden bg-[var(--color-bg-primary)] p-0.5" ref={reactFlowWrapper}>
+
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeDragStop={() => takeSnapshot()}
+              onConnect={onConnect}
+              onInit={(instance) => {
+                setReactFlowInstance(instance);
+                viewportRef.current = instance.getViewport();
+              }}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onNodeClick={onNodeClick}
+              onNodeDragStart={onNodeDragStart}
+              onNodeDoubleClick={onNodeDoubleClick}
+              onNodeContextMenu={onNodeContextMenu}
+              onPaneClick={onPaneClick}
+              onEdgeClick={onEdgeClick}
+              onEdgeContextMenu={onEdgeContextMenu}
+              nodeTypes={nodeTypes}
+              deleteKeyCode={['Backspace', 'Delete']}
+              onNodesDelete={(deletedNodes) => {
+                handleDeleteSelectedNodes(deletedNodes.map(n => n.id));
+              }}
+              onNodeResizeStop={(event, params) => {
+                const { id, width, height } = params;
+                // Rule: Sync resize back to node data for persistence
+                setNodes((nds) => nds.map((node) => {
+                  if (node.id === id) {
+                    return {
+                      ...node,
+                      width,
+                      height,
+                      data: { ...node.data, width, height }
+                    };
+                  }
+                  return node;
+                }));
+                setIsDirty(true);
+                takeSnapshot();
+              }}
+              onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
+              fitView={true}
+              connectionRadius={40}
+              panOnDrag={[1]}
+              selectionOnDrag={true}
+              panActivationKey="Space"
+              elementsSelectable={true}
+              nodesDraggable={true}
+              proOptions={{ hideAttribution: true }}
+              defaultEdgeOptions={{
+                type: 'smoothstep',
+                animated: false,
+                style: {
+                  stroke: 'var(--color-accent)',
+                  strokeWidth: 2,
+                  strokeDasharray: EDGE_DASH_PATTERN,
+                  filter: 'none',
+                },
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  color: 'var(--color-accent)',
+                },
+                label: '\u2699',
+                labelStyle: { fill: 'rgba(148,163,184,0.5)', fontSize: 7, fontWeight: 700 },
+                labelBgStyle: { fill: 'transparent' },
+                labelBgPadding: [0, 0],
+              }}
+              snapToGrid={true}
+              snapGrid={[8, 8]}
+            >
+              <div className="flow-control-dock">
+                <Controls showInteractive={false} showFitView={true} className="flow-controls-buttons" />
+              </div>
+            </ReactFlow>
+          </div>
+
+          {/* RIGHT: Inspector Panel */}
+          <div
+            className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${rightPanelOpen ? 'w-[340px]' : 'w-0 border-none m-0 shadow-none'}`}
+          >
+            <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
+              <button
+                onClick={() => setRightPanelTab('details')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => setRightPanelTab('history')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              >
+                History
+              </button>
+            </div>
+
+            <div className={`flex-1 overflow-y-auto crm-scroll-hidden flex flex-col relative ${rightPanelOpen ? 'w-[340px]' : 'w-0'}`}>
+              <div className={`flex-1 flex flex-col ${rightPanelTab === 'details' ? 'flex' : 'hidden'}`}>
+                <FlowInfoPanel
+                  flow={flow}
+                  onFlowUpdate={handleFlowUpdate}
+                  onApplyDraft={applyDraftToCanvas}
+                  onInsertFormTrigger={insertFormTrigger}
+                  onSaveAsTemplate={handleSaveAsTemplate}
+                  showDetails={true}
+                />
+                <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.6))] px-4 py-4 text-center shadow-[0_14px_32px_rgba(2,6,23,0.28)]">
+                    <div
+                      className="text-[16px] font-bold uppercase tracking-[0.28em] text-slate-100/90"
+                      style={{ fontFamily: '"Ethnocentric", "Inter", sans-serif' }}
+                    >
+                      {`AIO Flows${TM}`}
+                    </div>
+                    <div className="mt-2 text-[8px] font-bold uppercase tracking-[0.28em] text-slate-400">
+                      Builder Workspace
+                    </div>
                   </div>
-                  <div className="mt-2 text-[8px] font-bold uppercase tracking-[0.28em] text-slate-400">
-                    Builder Workspace
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
+                  <div className="w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
+                    <MiniMap nodeColor={(node) => miniMapNodeColors[node.data?.nodeColor] || miniMapNodeColors.default} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[140px] !bg-[var(--color-bg-primary)] opacity-90 hover:opacity-100 transition-opacity !m-0" />
                   </div>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
-                <div className="w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
-                  <MiniMap nodeColor={(node) => miniMapNodeColors[node.data?.nodeColor] || miniMapNodeColors.default} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[140px] !bg-[var(--color-bg-primary)] opacity-90 hover:opacity-100 transition-opacity !m-0" />
                 </div>
               </div>
-            </div>
 
-            <div className={`h-full ${rightPanelTab === 'history' ? 'block' : 'hidden'}`}>
-              <FlowRunHistoryPanel
-                runs={flowRunHistory}
-                loading={flowRunHistoryLoading}
-                error={flowRunHistoryError}
-                activeRunId={latestRunDetail?.runId || ''}
-                compareRunId={compareRunDetail?.runId || ''}
-                inspectingRunId={historyInspectingRunId}
-                comparingRunId={historyComparingRunId}
-                rerunningRunId={historyRerunningRunId}
-                onInspect={inspectStoredRun}
-                onCompare={compareStoredRun}
-                onRerun={rerunStoredRun}
-                onClose={() => setRightPanelOpen(false)}
-              />
+              <div className={`h-full ${rightPanelTab === 'history' ? 'block' : 'hidden'}`}>
+                <FlowRunHistoryPanel
+                  runs={flowRunHistory}
+                  loading={flowRunHistoryLoading}
+                  error={flowRunHistoryError}
+                  activeRunId={latestRunDetail?.runId || ''}
+                  compareRunId={compareRunDetail?.runId || ''}
+                  inspectingRunId={historyInspectingRunId}
+                  comparingRunId={historyComparingRunId}
+                  rerunningRunId={historyRerunningRunId}
+                  onInspect={inspectStoredRun}
+                  onCompare={compareStoredRun}
+                  onRerun={rerunStoredRun}
+                  onClose={() => setRightPanelOpen(false)}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* TOP OVERLAY: Stable Floating Controls (Moved out so it won't shift with panel) */}
@@ -2341,7 +2586,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         <div className="pointer-events-auto flex w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto crm-scroll-hidden bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md border border-[var(--color-border)]/50 rounded-xl px-2 py-1.5 shadow-island-sm">
           <button
             type="button"
-            onClick={handleRunFlow}
+            onClick={() => handleRunFlow()}
             disabled={isRunningFlow}
             className={`h-8 px-4 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 transition-all shadow-lg ${isRunningFlow ? 'opacity-60 cursor-wait' : 'hover:brightness-110'}`}
             style={{
@@ -2380,7 +2625,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
           <button
             type="button"
-            onClick={handleToggleStatus}
+            onClick={() => handleToggleStatus()}
             className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2"
           >
             <span>{flow?.status === 'Active' ? 'Deactivate' : 'Activate'}</span>
@@ -3765,7 +4010,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                       nodeId: node.id,
                       config: { ignoreErrors: !node.data?.config?.ignoreErrors }
                     }
-                    }, isSystemManaged);
+                  }, isSystemManaged);
                   if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
@@ -4051,6 +4296,62 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       )}
 
 
+
+      {/* Naming Modal for Untitled Flows */}
+      {showNamingModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm">
+          <div className="bg-[var(--color-bg-primary)] border border-sky-500/30 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 className="text-lg font-black text-white mb-2 uppercase tracking-tight">Name Your Flow</h3>
+            <p className="text-xs text-slate-400 mb-6">Untitled flows cannot be persisted. Provide a clear name to continue.</p>
+
+            <input
+              autoFocus
+              value={newFlowName}
+              onChange={(e) => setNewFlowName(e.target.value)}
+              placeholder="e.g. Lead Qualification Flow"
+              className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-sky-500/50 transition-all mb-6"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFlowName.trim()) {
+                  const finalName = newFlowName.trim();
+                  handleFlowUpdate({ name: finalName });
+                  setShowNamingModal(false);
+                  if (namingPendingAction === 'save') handleSaveFlow(finalName);
+                  if (namingPendingAction === 'saveAsNew') handleSaveAsNewFlow(finalName);
+                  if (namingPendingAction === 'activate') handleToggleStatus(finalName);
+                  if (namingPendingAction === 'run') handleRunFlow(finalName);
+                  setNamingPendingAction(null);
+                }
+                if (e.key === 'Escape') setShowNamingModal(false);
+              }}
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNamingModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!newFlowName.trim()}
+                onClick={() => {
+                  const finalName = newFlowName.trim();
+                  handleFlowUpdate({ name: finalName });
+                  setShowNamingModal(false);
+                  if (namingPendingAction === 'save') handleSaveFlow(finalName);
+                  if (namingPendingAction === 'saveAsNew') handleSaveAsNewFlow(finalName);
+                  if (namingPendingAction === 'activate') handleToggleStatus(finalName);
+                  if (namingPendingAction === 'run') handleRunFlow(finalName);
+                  setNamingPendingAction(null);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-sky-600 text-white hover:bg-sky-500 transition-all disabled:opacity-50"
+              >
+                Confirm Name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {latestRunDetail ? (
         <RunDetailInspector

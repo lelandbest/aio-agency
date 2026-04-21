@@ -545,6 +545,16 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           >
             <Layers size={15} className={savedFlowsExpanded ? '' : 'rotate-180'} />
           </button>
+
+          {(selectedFlowIds.length + selectedFolderIds.length) > 0 && (
+            <button
+              onClick={bulkDeleteSelectedFlows}
+              className="flex items-center gap-2 px-3 py-1.5 bg-red-400/10 hover:bg-red-400/20 text-red-300 text-[10px] font-bold rounded-lg border border-red-500/30 transition shadow-sm uppercase tracking-widest"
+            >
+              <Trash2 size={12} />
+              <span>Delete ({selectedFlowIds.length + selectedFolderIds.length})</span>
+            </button>
+          )}
         </div>
 
         {/* CENTER ZONE: STATUS ONLY */}
@@ -654,20 +664,6 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           onFolderSelect={toggleFolderSelection}
           onCreateItem={handleCreateBlank}
           createItemLabel="Create Flow"
-          actions={
-            <div className="flex items-center gap-2">
-              {(selectedFlowIds.length + selectedFolderIds.length) > 0 && (
-                <button
-                  onClick={bulkDeleteSelectedFlows}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
-                >
-                  <Trash2 size={14} />
-                  <span>DELETE SELECTED ({selectedFlowIds.length + selectedFolderIds.length})</span>
-                </button>
-              )}
-              {tableActions}
-            </div>
-          }
           folderProperty="flowGroup"
           showHeader={false}
           searchQuery={tableSearch}

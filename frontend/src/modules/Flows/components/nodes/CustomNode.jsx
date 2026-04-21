@@ -63,7 +63,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
     <div 
       className="relative flex flex-col items-center transition-all"
       style={{
-        transform: isGhost ? 'scale(1.2)' : 'none',
+        transform: 'none',
         transformOrigin: 'center center'
       }}
     >
@@ -72,14 +72,13 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           relative w-[50px] h-[50px] border-2 transition-all
           bg-[var(--color-bg-primary)] dark:bg-[var(--color-bg-secondary)]
           rounded-full flex items-center justify-center text-center
-          ${selected ? 'ring-2 ring-offset-2' : 'hover:ring-1 hover:ring-offset-1'}
+          ${selected ? 'border-dashed scale-105' : 'hover:ring-1 hover:ring-offset-1'}
           ${isGhost ? 'border-dashed opacity-60' : ''}
         `}
         style={{
           borderColor: selected ? glowColor.primary : borderColor,
-          ringColor: glowColor.primary,
           boxShadow: isGhost ? 'none' : selected 
-            ? `0 0 0 3px var(--color-bg-primary), 0 0 0 5px ${glowColor.primary}, 0 0 15px ${glowColor.primary}60`
+            ? `0 0 15px ${glowColor.primary}40, 0 0 30px ${glowColor.primary}20`
             : isProcessing
               ? `0 0 16px ${glowColor.primary}80, 0 0 32px ${glowColor.secondary}40`
               : `0 0 8px ${glowColor.primary}25, 0 0 16px ${glowColor.secondary}15`,
@@ -104,7 +103,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           type="target"
           position={Position.Left}
           isConnectable={isConnectable}
-          className="!w-3 !h-3 !border-2 !rounded-full !-left-0"
+          className="!w-1.5 !h-1.5 !border !rounded-full !-left-[3px]"
           style={{
             borderColor: isGhost ? 'var(--color-border)' : colorToken,
             backgroundColor: 'var(--color-bg-primary)',
@@ -148,7 +147,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           type="source"
           position={Position.Right}
           isConnectable={isConnectable}
-          className="!w-3 !h-3 !border-2 !rounded-full !-right-0"
+          className="!w-1.5 !h-1.5 !border !rounded-full !-right-[3px]"
           style={{
             borderColor: isGhost ? 'var(--color-border)' : colorToken,
             backgroundColor: 'var(--color-bg-primary)',
@@ -158,11 +157,11 @@ const CustomNode = ({ data, selected, isConnectable }) => {
       </div>
 
       {/* Labels below node */}
-      <div className="mt-2 min-w-0 text-center">
-        <h3 className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight max-w-[85px] truncate">
+      <div className="mt-1 min-w-0 text-center">
+        <h3 className="text-[7.5px] font-semibold text-[var(--color-text-primary)] leading-tight max-w-[80px] truncate">
           {data.label}
         </h3>
-        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide mt-0.5">
+        <p className="text-[6px] text-[var(--color-text-tertiary)] uppercase tracking-wide mt-0.5">
           {data.typeLabel || data.type}
         </p>
         {data.providerStatus && data.providerStatus !== 'connected' && (

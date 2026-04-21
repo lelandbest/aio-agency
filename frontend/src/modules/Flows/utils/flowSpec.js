@@ -220,23 +220,23 @@ export const validateFlowSpec = (spec, options = {}) => {
       }
     }
 
-  if (intent === 'generate_run_of_show') {
-    if (!String(config.topic || '').trim()) {
-      blockers.push(`${node?.data?.label || nodeId} is missing a topic.`);
+    if (intent === 'generate_run_of_show') {
+      if (!String(config.topic || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a topic.`);
+      }
+      if (!String(config.duration || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a duration.`);
+      }
     }
-    if (!String(config.duration || '').trim()) {
-      blockers.push(`${node?.data?.label || nodeId} is missing a duration.`);
-    }
-  }
 
-  if (intent === 'generate_transcript_intelligence') {
-    const transcriptText = String(config.transcriptText || config.transcript_text || '').trim();
-    if (!transcriptText) {
-      blockers.push(`${node?.data?.label || nodeId} is missing transcript text.`);
+    if (intent === 'generate_transcript_intelligence') {
+      const transcriptText = String(config.transcriptText || config.transcript_text || '').trim();
+      if (!transcriptText) {
+        blockers.push(`${node?.data?.label || nodeId} is missing transcript text.`);
+      }
     }
-  }
 
-  if (intent === 'generate_voice') {
+    if (intent === 'generate_voice') {
       const text = String(config.text || config.script || config.scriptText || config.inputs?.text || '').trim();
       if (!text) {
         blockers.push(`${node?.data?.label || nodeId} is missing text or script input.`);
