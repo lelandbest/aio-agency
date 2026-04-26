@@ -1060,7 +1060,16 @@ class StepExecutor:
             if token == prefix:
                 return source, True
             if token.startswith(f"{prefix}."):
-                value = dotted_get(source, token[len(prefix) + 1:])
+                path = token[len(prefix) + 1:]
+                value = dotted_get(source, path)
+
+                # Fix 1: Support {{nodes.nodeId.field}} by falling back to .data lookup
+                if value is None and prefix == "nodes" and "." in path:
+                    parts = path.split(".")
+                    if len(parts) >= 2 and parts[1] != "data":
+                        data_path = f"{parts[0]}.data.{'.'.join(parts[1:])}"
+                        value = dotted_get(source, data_path)
+
                 if value is not None:
                     return value, True
         for prefix, source in sources:

@@ -59,6 +59,17 @@ export default defineConfig(async () => {
   return {
     plugins: [react()],
 
+    build: {
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            excalidraw: ['@excalidraw/excalidraw'],
+          },
+        },
+      },
+    },
+
     server: {
       host: "0.0.0.0",
       port: 5175,

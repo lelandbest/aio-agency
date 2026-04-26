@@ -5,8 +5,335 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, ChevronRight } from 'lucide-react';
+import { getAllNodes } from '../data/nodeLibrary';
 import { getFormsApi } from '../../../services/backendApi';
+import NodeOutputInspector from './NodeOutputInspector';
+
+
+const VARIABLE_SOURCES = [
+  { id: 'previous', label: 'Previous Node' },
+  { id: 'nodes', label: 'Nodes' },
+  { id: 'run.vars', label: 'Run Variables' },
+  { id: 'form', label: 'Form Data' },
+  { id: 'trigger', label: 'Trigger Data' },
+  { id: 'globals', label: 'Globals' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'booking', label: 'Booking' },
+];
+
+const KNOWN_FIELDS = {
+  contact: ['firstName', 'lastName', 'email', 'phone', 'company', 'title', 'department', 'status', 'leadScore', 'pipelineStage'],
+  booking: ['event_id', 'start_time', 'end_time', 'status'],
+  form: ['id', 'name', 'submittedAt']
+};
+
+
+const VariableInput = ({ type = 'text', value, onChange, placeholder, className, isTextArea = false, nodes = [], edges = [], currentNodeId = null }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedUpstreamNodeId, setSelectedUpstreamNodeId] = useState(null);
+  const [customPath, setCustomPath] = useState('');
+  const inputRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setShowPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!showPicker) {
+      setSelectedSource(null);
+      setSelectedNodeId(null);
+      setSelectedUpstreamNodeId(null);
+      setCustomPath('');
+    }
+  }, [showPicker]);
+
+  const handleInsert = (token) => {
+    const input = inputRef.current;
+    if (input) {
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      const newValue = (value || '').substring(0, start) + token + (value || '').substring(end);
+      onChange(newValue);
+      
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start + token.length, start + token.length);
+      }, 0);
+    } else {
+      onChange((value || '') + token);
+    }
+    setShowPicker(false);
+    setSelectedSource(null);
+    setSelectedNodeId(null);
+    setCustomPath('');
+  };
+
+  const getOutputSchema = (nodeId) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+    const templateId = node.data?.templateId;
+    if (!templateId) return null;
+    const allTemplates = typeof getAllNodes === 'function' ? getAllNodes() : [];
+    const template = allTemplates.find(t => t.id === templateId);
+    return template?.outputSchema || null;
+  };
+
+  const renderPicker = () => {
+    if (!showPicker) return null;
+
+    if (!selectedSource) {
+      return (
+        <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+          <div className="max-h-60 overflow-y-auto">
+             <div className="p-2 border-b border-[var(--color-border)] text-[10px] font-bold text-[var(--color-text-tertiary)] bg-[var(--color-bg-secondary)] tracking-wider">SELECT SOURCE</div>
+             {VARIABLE_SOURCES.map(s => (
+               <button key={s.id} onClick={() => setSelectedSource(s.id)} className="w-full text-left px-3 py-2 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
+                 {s.label} <span className="text-[var(--color-text-tertiary)] text-[10px] float-right font-mono mt-1">{s.id}</span>
+               </button>
+             ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedSource === 'nodes') {
+      if (!selectedNodeId) {
+        return (
+          <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+            <div className="flex flex-col max-h-60">
+              <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+                <span>Nodes</span>
+                <button onClick={() => setSelectedSource(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">&larr; Back</button>
+              </div>
+              <div className="overflow-y-auto p-2 space-y-1">
+                {nodes.filter(n => n.id !== currentNodeId).map(n => (
+                  <button key={n.id} onClick={() => setSelectedNodeId(n.id)} className="w-full text-left px-2 py-1.5 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] text-[11px] font-mono rounded truncate" title={n.data?.label || n.id}>
+                    {n.data?.label || n.id}
+                  </button>
+                ))}
+                {nodes.length <= 1 && (
+                  <div className="text-[11px] text-[var(--color-text-tertiary)] px-2 py-1">No other nodes available.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      } else {
+        const schema = getOutputSchema(selectedNodeId);
+        const fields = schema ? Object.keys(schema) : [];
+        return (
+          <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+            <div className="flex flex-col max-h-60">
+              <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+                <span className="truncate max-w-[150px]">{nodes.find(n => n.id === selectedNodeId)?.data?.label || 'Node'} Fields</span>
+                <button onClick={() => setSelectedNodeId(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] flex-shrink-0">&larr; Back</button>
+              </div>
+              <div className="overflow-y-auto p-2 space-y-1">
+                {fields.length > 0 ? fields.map(f => (
+                  <button key={f} onClick={() => handleInsert(`{{nodes.${selectedNodeId}.${f}}}`)} className="w-full text-left px-2 py-1.5 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] text-[11px] font-mono rounded">
+                    {f} <span className="text-[9px] text-[var(--color-text-tertiary)] ml-1">({schema[f]})</span>
+                  </button>
+                )) : (
+                  <div className="text-[11px] text-[var(--color-text-tertiary)] px-2 py-1">No schema defined. Use manual path.</div>
+                )}
+                <div className="pt-2 border-t border-[var(--color-border)] mt-2">
+                   <div className="flex items-center gap-1">
+                     <span className="text-[var(--color-text-tertiary)] text-[10px] font-mono truncate max-w-[80px]" title={`nodes.${selectedNodeId}.`}>...{selectedNodeId.slice(-4)}.</span>
+                     <input 
+                        type="text" 
+                        value={customPath} 
+                        onChange={e => setCustomPath(e.target.value)}
+                        placeholder="field.path"
+                        className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-1 text-[11px] text-[var(--color-text-primary)] min-w-0"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && customPath) handleInsert(`{{nodes.${selectedNodeId}.${customPath}}}`);
+                        }}
+                     />
+                     <button onClick={() => customPath && handleInsert(`{{nodes.${selectedNodeId}.${customPath}}}`)} className="text-[var(--color-primary)] font-bold px-2 py-1 bg-[var(--color-primary)]/10 rounded">+</button>
+                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    if (selectedSource === 'previous') {
+      const upstreamEdges = edges.filter(e => e.target === currentNodeId);
+      
+      // Case: No upstream nodes
+      if (upstreamEdges.length === 0) {
+        return (
+          <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+             <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+                <span>Previous Node</span>
+                <button onClick={() => setSelectedSource(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">&larr; Back</button>
+             </div>
+             <div className="p-4 text-[11px] text-[var(--color-text-tertiary)]">No upstream nodes found.</div>
+          </div>
+        );
+      }
+
+      // Case: Multiple upstream nodes and none selected yet
+      if (upstreamEdges.length > 1 && !selectedUpstreamNodeId) {
+        return (
+          <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+             <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+                <span>Select Source Node</span>
+                <button onClick={() => setSelectedSource(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">&larr; Back</button>
+             </div>
+             <div className="overflow-y-auto p-2 space-y-1 max-h-60">
+                {upstreamEdges.map(edge => {
+                   const node = nodes.find(n => n.id === edge.source);
+                   return (
+                     <button 
+                       key={edge.source} 
+                       onClick={() => setSelectedUpstreamNodeId(edge.source)}
+                       className="w-full text-left px-2 py-1.5 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] text-[11px] rounded flex items-center justify-between"
+                     >
+                       <span className="truncate pr-2">{node?.data?.label || node?.id}</span>
+                       <ChevronRight size={10} className="text-[var(--color-text-tertiary)] flex-shrink-0" />
+                     </button>
+                   );
+                })}
+             </div>
+          </div>
+        );
+      }
+
+      // Case: Single upstream node or one selected from multiple
+      const targetNodeId = upstreamEdges.length === 1 ? upstreamEdges[0].source : selectedUpstreamNodeId;
+      const schema = targetNodeId ? getOutputSchema(targetNodeId) : null;
+      const fields = schema ? Object.keys(schema) : [];
+      const isMulti = upstreamEdges.length > 1;
+
+      return (
+        <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+          <div className="flex flex-col max-h-60">
+             <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+                <span className="truncate max-w-[150px]">{isMulti ? nodes.find(n => n.id === targetNodeId)?.data?.label : 'Previous Node'}</span>
+                <button onClick={() => isMulti ? setSelectedUpstreamNodeId(null) : setSelectedSource(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] flex-shrink-0">&larr; Back</button>
+             </div>
+             <div className="overflow-y-auto p-2 space-y-1">
+                {fields.length > 0 ? fields.map(f => (
+                   <button 
+                     key={f} 
+                     onClick={() => handleInsert(isMulti ? `{{nodes.${targetNodeId}.${f}}}` : `{{previous.${f}}}`)} 
+                     className="w-full text-left px-2 py-1.5 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] text-[11px] font-mono rounded"
+                   >
+                     {f} <span className="text-[9px] text-[var(--color-text-tertiary)] ml-1">({schema[f]})</span>
+                   </button>
+                )) : (
+                   <div className="text-[11px] text-[var(--color-text-tertiary)] px-2 py-1">No schema defined.</div>
+                )}
+                <div className="pt-2 border-t border-[var(--color-border)] mt-2">
+                   <div className="flex items-center gap-1">
+                     <span className="text-[var(--color-text-tertiary)] text-[11px] font-mono truncate max-w-[80px]">
+                        {isMulti ? `...${targetNodeId.slice(-4)}.` : 'previous.'}
+                     </span>
+                     <input 
+                        type="text" 
+                        value={customPath} 
+                        onChange={e => setCustomPath(e.target.value)}
+                        placeholder="field"
+                        className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-1 text-[11px] text-[var(--color-text-primary)] min-w-0"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && customPath) handleInsert(isMulti ? `{{nodes.${targetNodeId}.${customPath}}}` : `{{previous.${customPath}}}`);
+                        }}
+                     />
+                     <button onClick={() => customPath && handleInsert(isMulti ? `{{nodes.${targetNodeId}.${customPath}}}` : `{{previous.${customPath}}}`)} className="text-[var(--color-primary)] font-bold px-2 py-1 bg-[var(--color-primary)]/10 rounded">+</button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Default behavior for contact, booking, globals, run.vars, trigger, form
+    return (
+      <div className="absolute right-0 z-50 mt-1 w-64 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl text-sm overflow-hidden flex flex-col">
+        <div className="flex flex-col max-h-60">
+           <div className="p-2 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
+              <span>{VARIABLE_SOURCES.find(s=>s.id === selectedSource)?.label}</span>
+              <button onClick={() => setSelectedSource(null)} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">&larr; Back</button>
+           </div>
+           <div className="overflow-y-auto p-2 space-y-1">
+              {(KNOWN_FIELDS[selectedSource] || []).map(f => (
+                 <button key={f} onClick={() => handleInsert(`{{${selectedSource}.${f}}}`)} className="w-full text-left px-2 py-1.5 hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] text-[11px] font-mono rounded">
+                   {f}
+                 </button>
+              ))}
+              {(!KNOWN_FIELDS[selectedSource] || KNOWN_FIELDS[selectedSource].length === 0) && (
+                 <div className="text-[11px] text-[var(--color-text-tertiary)] px-2 py-1">Manual path required for this source.</div>
+              )}
+              <div className="pt-2 border-t border-[var(--color-border)] mt-2">
+                 <div className="flex items-center gap-1">
+                   <span className="text-[var(--color-text-tertiary)] text-[11px] font-mono">{selectedSource}.</span>
+                   <input 
+                      type="text" 
+                      value={customPath} 
+                      onChange={e => setCustomPath(e.target.value)}
+                      placeholder="path"
+                      className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1.5 py-1 text-[11px] text-[var(--color-text-primary)] min-w-0"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && customPath) handleInsert(`{{${selectedSource}.${customPath}}}`);
+                      }}
+                   />
+                   <button onClick={() => customPath && handleInsert(`{{${selectedSource}.${customPath}}}`)} className="text-[var(--color-primary)] font-bold px-2 py-1 bg-[var(--color-primary)]/10 rounded">+</button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="flex items-start relative">
+        {isTextArea ? (
+           <textarea
+             ref={inputRef}
+             value={value}
+             onChange={e => onChange(e.target.value)}
+             placeholder={placeholder}
+             className={className}
+           />
+        ) : (
+           <input
+             ref={inputRef}
+             type={type}
+             value={value}
+             onChange={e => onChange(e.target.value)}
+             placeholder={placeholder}
+             className={className}
+           />
+        )}
+        <button 
+           type="button"
+           onClick={() => setShowPicker(!showPicker)}
+           className="absolute right-2 top-2 p-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition-colors shadow-sm"
+           title="Insert Variable"
+        >
+          <span className="font-mono text-[10px] font-bold block leading-none">{'{ }'}</span>
+        </button>
+      </div>
+      {renderPicker()}
+    </div>
+  );
+};
 
 const DEFAULT_VIDEO_TEMPLATE_ID = 'bltv_169';
 
@@ -27,10 +354,11 @@ const applyDefaultVideoTemplate = (nextConfig, videoTemplateOptions = []) => {
   };
 };
 
-const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions = [] }) => {
+const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions = [], nodes = [], edges = [], runDetail = null }) => {
   const [config, setConfig] = useState(applyDefaultVideoTemplate(node?.data?.config || {}, videoTemplateOptions));
   const [forms, setForms] = useState([]);
   const [loadingForms, setLoadingForms] = useState(false);
+  const [activeTab, setActiveTab] = useState('DATA');
 
   useEffect(() => {
     setConfig(applyDefaultVideoTemplate(node?.data?.config || {}, videoTemplateOptions));
@@ -168,7 +496,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Description
             </label>
-            <textarea
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
               value={config.description || ''}
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Describe trigger behavior..."
@@ -220,28 +548,25 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'generate_script' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.topic || ''}
                 onChange={(e) => handleInputChange('topic', e.target.value)}
                 placeholder="Topic"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.tone || ''}
                 onChange={(e) => handleInputChange('tone', e.target.value)}
                 placeholder="Tone"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.length || config.duration || ''}
                 onChange={(e) => { handleInputChange('length', e.target.value); handleInputChange('duration', e.target.value); }}
                 placeholder="Length"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.context || ''}
                 onChange={(e) => handleInputChange('context', e.target.value)}
                 placeholder="Context"
@@ -252,21 +577,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'generate_run_of_show' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.topic || ''}
                 onChange={(e) => handleInputChange('topic', e.target.value)}
                 placeholder="Topic"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.duration || ''}
                 onChange={(e) => handleInputChange('duration', e.target.value)}
                 placeholder="Duration"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.context || ''}
                 onChange={(e) => handleInputChange('context', e.target.value)}
                 placeholder="Production context"
@@ -277,21 +600,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'generate_transcript_intelligence' && (
             <div className="grid grid-cols-1 gap-3">
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.transcriptText || ''}
                 onChange={(e) => handleInputChange('transcriptText', e.target.value)}
                 placeholder="Transcript text"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.assetId || ''}
                 onChange={(e) => handleInputChange('assetId', e.target.value)}
                 placeholder="Asset ID (optional)"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.sourceUrl || ''}
                 onChange={(e) => handleInputChange('sourceUrl', e.target.value)}
                 placeholder="Source URL (optional)"
@@ -302,21 +623,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'generate_voice' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.voice || ''}
                 onChange={(e) => handleInputChange('voice', e.target.value)}
                 placeholder="Voice"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.style || ''}
                 onChange={(e) => handleInputChange('style', e.target.value)}
                 placeholder="Style"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.text || config.scriptText || ''}
                 onChange={(e) => handleInputChange('text', e.target.value)}
                 placeholder="Text or script input"
@@ -327,21 +646,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'text_to_speech' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.voice || ''}
                 onChange={(e) => handleInputChange('voice', e.target.value)}
                 placeholder="Voice"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.style || ''}
                 onChange={(e) => handleInputChange('style', e.target.value)}
                 placeholder="Style"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.text || config.scriptText || ''}
                 onChange={(e) => handleInputChange('text', e.target.value)}
                 placeholder="Text or script input"
@@ -352,28 +669,25 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'generate_thumbnail' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.title || ''}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="Title"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.subtitle || ''}
                 onChange={(e) => handleInputChange('subtitle', e.target.value)}
                 placeholder="Subtitle"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.image || ''}
                 onChange={(e) => handleInputChange('image', e.target.value)}
                 placeholder="Background"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.prompt || ''}
                 onChange={(e) => handleInputChange('prompt', e.target.value)}
                 placeholder="Prompt"
@@ -384,15 +698,13 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'publish_asset' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.publishTarget || ''}
                 onChange={(e) => handleInputChange('publishTarget', e.target.value)}
                 placeholder="Publish Target"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.assetRef || ''}
                 onChange={(e) => handleInputChange('assetRef', e.target.value)}
                 placeholder="Asset Ref (optional)"
@@ -414,14 +726,13 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                   </option>
                 ))}
               </select>
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.outputTarget || ''}
                 onChange={(e) => handleInputChange('outputTarget', e.target.value)}
                 placeholder="Output Target"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.script || ''}
                 onChange={(e) => handleInputChange('script', e.target.value)}
                 placeholder="Script or prompt"
@@ -432,21 +743,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'transcribe_media' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.sourceType || ''}
                 onChange={(e) => handleInputChange('sourceType', e.target.value)}
                 placeholder="Source Type"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.sourceRef || ''}
                 onChange={(e) => handleInputChange('sourceRef', e.target.value)}
                 placeholder="Source Ref"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.transcriptText || ''}
                 onChange={(e) => handleInputChange('transcriptText', e.target.value)}
                 placeholder="Transcript text"
@@ -457,21 +766,19 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
 
           {config.actionType === 'ingest_meeting_artifacts' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.meetingProvider || ''}
                 onChange={(e) => handleInputChange('meetingProvider', e.target.value)}
                 placeholder="Meeting Provider"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <input
-                type="text"
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                 value={config.meetingRef || ''}
                 onChange={(e) => handleInputChange('meetingRef', e.target.value)}
                 placeholder="Meeting Ref"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <textarea
+              <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                 value={config.transcriptText || ''}
                 onChange={(e) => handleInputChange('transcriptText', e.target.value)}
                 placeholder="Transcript text"
@@ -484,7 +791,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Configuration
             </label>
-            <textarea
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
               value={config.configuration || ''}
               onChange={(e) => handleInputChange('configuration', e.target.value)}
               placeholder="Enter action configuration..."
@@ -591,7 +898,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                   AI Form Prompt
                 </label>
-                <textarea
+                <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
                   value={config.prompt || ''}
                   onChange={(e) => handleInputChange('prompt', e.target.value)}
                   placeholder="Describe the form you want to create (e.g. 'A lead intake form with name, email, and company size')..."
@@ -603,8 +910,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                   Temporary Form Name
                 </label>
-                <input
-                  type="text"
+                <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
                   value={config.formName || ''}
                   onChange={(e) => handleInputChange('formName', e.target.value)}
                   placeholder="e.g. Dynamic Intake Form"
@@ -618,8 +924,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Display Message
             </label>
-            <input
-              type="text"
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
               value={config.message || ''}
               onChange={(e) => handleInputChange('message', e.target.value)}
               placeholder="Please complete this form to continue."
@@ -648,8 +953,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Workflow / Scenario ID or URL
             </label>
-            <input
-              type="text"
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
               value={config.workflowRef || ''}
               onChange={(e) => handleInputChange('workflowRef', e.target.value)}
               placeholder="workflow-id or https://..."
@@ -660,8 +964,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Credential Reference
             </label>
-            <input
-              type="text"
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} type="text"
               value={config.authRef || ''}
               onChange={(e) => handleInputChange('authRef', e.target.value)}
               placeholder="authRef"
@@ -672,7 +975,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Payload Mapping (JSON)
             </label>
-            <textarea
+            <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
               value={config.payloadMap || ''}
               onChange={(e) => handleInputChange('payloadMap', e.target.value)}
               placeholder='{"inputKey": "node.output"}'
@@ -708,7 +1011,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
         <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
           General Configuration
         </label>
-        <textarea
+        <VariableInput nodes={nodes} edges={edges} currentNodeId={node?.id} isTextArea
           value={config.general || ''}
           onChange={(e) => handleInputChange('general', e.target.value)}
           placeholder="Enter node configuration..."
@@ -748,9 +1051,65 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {renderConfigForm()}
+
+        <div className="flex border-b border-[var(--color-border)] overflow-x-auto scrollbar-hide">
+          {['DISPLAY', 'DATA', 'VALIDATION', 'CONDITIONAL', 'LOGIC', 'OUTPUT'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {activeTab === 'DATA' && renderConfigForm()}
+          {activeTab === 'DISPLAY' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">Node Label</label>
+                <div className="px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] opacity-70">
+                  {node?.data?.label || 'Unknown'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">Node Description</label>
+                <div className="px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] opacity-70 min-h-[60px]">
+                  {node?.data?.description || 'No description provided.'}
+                </div>
+              </div>
+            </div>
+          )}
+          {activeTab === 'VALIDATION' && (
+            <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-tertiary)]">
+              No validation rules configured.
+            </div>
+          )}
+          {activeTab === 'CONDITIONAL' && (
+            <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-tertiary)]">
+              Conditional execution rules will appear here.
+            </div>
+          )}
+          {activeTab === 'LOGIC' && (
+            <div className="flex items-center justify-center h-32 text-sm text-[var(--color-text-tertiary)]">
+              Advanced node logic settings will appear here.
+            </div>
+          )}
+          {activeTab === 'OUTPUT' && (
+            <NodeOutputInspector
+              node={node}
+              nodes={nodes}
+              edges={edges}
+              runDetail={runDetail}
+            />
+          )}
+        </div>
+
 
         {/* Footer */}
         <div className="p-4 border-t border-[var(--color-border)] flex gap-2">

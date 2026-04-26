@@ -2408,6 +2408,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
             <ReactFlow
               nodes={nodes}
+        edges={edges}
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
@@ -2450,6 +2451,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               }}
               onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
               fitView={true}
+              fitViewOptions={{ maxZoom: 1.2 }}
+              minZoom={0.1}
+              maxZoom={3}
               connectionRadius={40}
               panOnDrag={[1]}
               selectionOnDrag={true}
@@ -3871,10 +3875,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
       <NodeConfigDrawer
         node={selectedNode}
+        nodes={nodes}
+        edges={edges}
         isOpen={showNodeConfig}
         onClose={() => setShowNodeConfig(false)}
         onSave={handleConfigSave}
         videoTemplateOptions={mediaRenderTemplates}
+        runDetail={latestRunDetail}
       />
 
       {/* History panel successfully relocated entirely to Details dock Tab */}

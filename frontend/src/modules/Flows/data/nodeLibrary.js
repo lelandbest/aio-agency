@@ -351,6 +351,11 @@ export const webhookNodes = [
     description: 'Make API call',
     iconName: 'Globe',
     nodeColor: 'webhook',
+    outputSchema: {
+      data: 'object',
+      status: 'number',
+      headers: 'object'
+    }
   },
   {
     id: 'webhook',
@@ -374,6 +379,11 @@ export const messagingNodes = [
     description: 'Send email to contacts',
     iconName: 'Mail',
     nodeColor: 'action',
+    outputSchema: {
+      success: 'boolean',
+      messageId: 'string',
+      timestamp: 'string'
+    }
   },
   {
     id: 'send-sms',
@@ -500,6 +510,12 @@ export const verificationNodes = [
       mode: 'quick',
       writeback: true,
     },
+    outputSchema: {
+      status: 'string',
+      isValid: 'boolean',
+      score: 'number',
+      reason: 'string'
+    }
   },
   {
     id: 'verify-email-bulk',

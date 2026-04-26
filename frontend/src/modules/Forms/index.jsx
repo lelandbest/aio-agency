@@ -1370,7 +1370,7 @@ const FormBuilderModule = () => {
 
       <div className="module-content-stage px-2 pb-2 flex bg-transparent gap-1.5">
       {/* Left Sidebar - Field Tools */}
-      <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
+      <div className="w-72 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
         <div className="p-1.5 space-y-0.5">
           {FORM_TOOLS.map((category, idx) => (
             <div key={idx}>
@@ -1528,7 +1528,7 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Right Sidebar - Field Configuration */}
-      <div className="w-[360px] min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
+      <div className="w-[400px] min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
         {selectedField ? (
           <>
             <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)] overflow-x-auto no-scrollbar">
@@ -1586,6 +1586,10 @@ const FormBuilderModule = () => {
                       <label className="text-sm text-[var(--color-text-secondary)]">Hidden Field (not visible to users)</label>
                     </div>
                     <div className="flex items-center gap-3">
+                      <input type="checkbox" checked={selectedField.disabled || false} onChange={(e) => updateFieldProperty(selectedField.id, 'disabled', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                      <label className="text-sm text-[var(--color-text-secondary)]">Disabled (Read-only)</label>
+                    </div>
+                    <div className="flex items-center gap-3">
                       <input type="checkbox" checked={selectedField.hideLabel || false} onChange={(e) => updateFieldProperty(selectedField.id, 'hideLabel', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
                       <label className="text-sm text-[var(--color-text-secondary)]">Hide Label</label>
                     </div>
@@ -1618,6 +1622,17 @@ const FormBuilderModule = () => {
                       placeholder="Enter default value"
                     />
                   </div>
+                  {['text', 'tel'].includes(selectedField.type) && (
+                    <div>
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Data Mask / Format</label>
+                      <input
+                        value={selectedField.mask || ''}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'mask', e.target.value)}
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none font-mono"
+                        placeholder="e.g. (999) 999-9999"
+                      />
+                    </div>
+                  )}
                   {(selectedField.type === 'select' || selectedField.type === 'radio' || selectedField.type === 'checkbox') && (
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-2">
@@ -1803,6 +1818,19 @@ const FormBuilderModule = () => {
                             </button>
                         </div>
                         <div className="flex flex-col gap-2">
+                          <select
+                            value={action.trigger || 'change'}
+                            onChange={(e) => {
+                              const newActions = [...(selectedField.logic?.actions || [])];
+                              newActions[aIdx] = { ...action, trigger: e.target.value };
+                              updateFieldProperty(selectedField.id, 'logic', { ...selectedField.logic, actions: newActions });
+                            }}
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                          >
+                            <option value="change">On Value Change</option>
+                            <option value="submit">On Form Submit</option>
+                            <option value="blur">On Field Blur</option>
+                          </select>
                           <select
                             value={action.type || 'webhook'}
                             onChange={(e) => {

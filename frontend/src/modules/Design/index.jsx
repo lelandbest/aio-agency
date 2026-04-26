@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Excalidraw } from '@excalidraw/excalidraw';
+// DO NOT statically import @excalidraw/excalidraw.
+// This module MUST remain lazy-loaded to prevent main bundle bloat.
+// Use React.lazy for UI and dynamic import() for utilities only.
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import '@excalidraw/excalidraw/index.css';
-import { Download, Share, Check, X, Box } from 'lucide-react';
+import { Download, Check, X, Box } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { uploadMediaFileApi } from '../../services/backendApi';
+
+const Excalidraw = lazy(() => import('@excalidraw/excalidraw').then(mod => ({ default: mod.Excalidraw })));
 
 const STORAGE_KEY = 'aioDesignScene';
 
@@ -42,7 +45,6 @@ const DesignModule = () => {
   const handleSceneChange = useCallback((elements, appState) => {
     if (!elements || elements.length === 0) return;
 
-    // Sanitize appState for storage (remove non-serializable fields)
     const { collaborators, ...serializableAppState } = appState;
 
     const data = {
@@ -86,7 +88,6 @@ const DesignModule = () => {
 
       console.log('[Design] Gathering artifacts...', { elementCount: elements.length });
 
-      // Collect Outputs
       const outputs = [];
 
       if (formats.png) {
@@ -128,7 +129,6 @@ const DesignModule = () => {
         }
       }
 
-      // Execute Outputs
       for (const out of outputs) {
         if (out.type === 'download') {
           const url = URL.createObjectURL(out.blob);
@@ -212,15 +212,24 @@ const DesignModule = () => {
 
       <div className="module-content-stage relative">
         <div className="absolute inset-0">
-          <Excalidraw
-            excalidrawAPI={(api) => setExcalidrawAPI(api)}
-            initialData={initialData}
-            onChange={handleSceneChange}
-            theme="dark"
-            viewBackgroundColor="#1a1a1a"
-            className="h-full w-full"
-            UIOptions={UIOptions}
-          />
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full w-full bg-[#070708]">
+              <div className="text-center animate-pulse">
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500 mb-2">Design Surface</div>
+                <div className="text-xs text-slate-600">Loading canvas engine...</div>
+              </div>
+            </div>
+          }>
+            <Excalidraw
+              excalidrawAPI={(api) => setExcalidrawAPI(api)}
+              initialData={initialData}
+              onChange={handleSceneChange}
+              theme="dark"
+              viewBackgroundColor="#1a1a1a"
+              className="h-full w-full"
+              UIOptions={UIOptions}
+            />
+          </Suspense>
         </div>
       </div>
 
