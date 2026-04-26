@@ -4,6 +4,7 @@
  */
 import { buildFlowSpec, validateFlowSpec } from './flowSpec';
 import { MarkerType } from '@xyflow/react';
+import { getAllNodes } from '../data/nodeLibrary';
 
 /**
  * Deep resolve variables in an object or array.
@@ -66,6 +67,43 @@ export const ingestFlowSource = (input, options = {}) => {
 
   // 2. Transform Nodes & Build ID Map
   const oldToNewIdMap = {};
+  const canonicalNodes = getAllNodes();
+
+  const getCanonicalIdentity = (node) => {
+    let match = canonicalNodes.find(cn => cn.id === node.data?.templateId || cn.id === node.id);
+    if (!match && node.data?.actionType) {
+      match = canonicalNodes.find(cn => 
+        cn.actionType === node.data.actionType || 
+        (cn.config && cn.config.actionType === node.data.actionType)
+      );
+    }
+    
+    // Fallback heuristic for legacy/copied flows (e.g. copied PostBot or podcast pipelines)
+    if (!match) {
+      const searchPool = [
+        node.id,
+        node.data?.templateId,
+        node.data?.actionType,
+        node.data?.config?.actionType,
+        node.data?.config?.provider,
+      ].filter(Boolean).map(s => String(s).toLowerCase());
+
+      match = canonicalNodes.find(cn => {
+        if (cn.nodeColor !== 'media') return false;
+        return searchPool.some(s => 
+          s.includes(cn.id.toLowerCase().replace(/-/g, '_')) || 
+          s.includes(cn.id.toLowerCase().replace(/_/g, '-')) ||
+          (cn.actionType && (
+            s.includes(cn.actionType.toLowerCase()) ||
+            s.includes(cn.actionType.toLowerCase().replace(/_/g, '-'))
+          ))
+        );
+      });
+    }
+    
+    return match;
+  };
+
   const normalizedNodes = nodes.map((node) => {
     const isExternal = ['template', 'ai'].includes(activeSource);
     
@@ -99,6 +137,13 @@ export const ingestFlowSource = (input, options = {}) => {
         nodeColor: node.data?.nodeColor || (node.type === 'trigger' ? 'trigger' : 'action'),
       },
     };
+
+    // --- RE-STAMP IDENTITY ---
+    const identityMatch = getCanonicalIdentity(node);
+    if (identityMatch && identityMatch.nodeColor === 'media') {
+       nNode.data.nodeColor = 'media';
+       nNode.data.iconName = identityMatch.iconName || nNode.data.iconName;
+    }
 
     // Apply specific offsets for template injection
     if (activeSource === 'template') {

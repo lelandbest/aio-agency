@@ -8,21 +8,11 @@ import { createNode } from '../data/nodeLibrary';
 import flowDraftRepository from './flowDraftRepository';
 import { createDocumentationNoteNodes } from './documentationNotes';
 
-const NODE_TEMPLATES = {
-  // Triggers
-  'form-submitted-trigger': { id: 'form-submitted-trigger', type: 'trigger', label: 'Form Submitted', description: 'Start on form submission', iconName: 'FileText', nodeColor: 'trigger' },
-  'sms-received-trigger': { id: 'sms-received-trigger', type: 'trigger', label: 'SMS Received', description: 'Start on incoming SMS', iconName: 'MessageSquare', nodeColor: 'trigger' },
-  'deal-updated-trigger': { id: 'deal-updated-trigger', type: 'trigger', label: 'Deal Updated', description: 'Start when a deal changes', iconName: 'Workflow', nodeColor: 'trigger' },
-  'missed-call-trigger': { id: 'missed-call-trigger', type: 'trigger', label: 'Missed Call', description: 'Start on missed call', iconName: 'Phone', nodeColor: 'trigger' },
-  'contact-created-trigger': { id: 'contact-created-trigger', type: 'trigger', label: 'Contact Created', description: 'Start when contact is created', iconName: 'User', nodeColor: 'trigger' },
-  'manual-trigger': { id: 'manual-trigger', type: 'trigger', label: 'Manual Trigger', description: 'Start flow manually', iconName: 'Play', nodeColor: 'trigger' },
+import { getAllNodes } from '../data/nodeLibrary';
 
-  // Actions
-  'send-email': { id: 'send-email', type: 'action', label: 'Send Email', description: 'Send follow-up email', iconName: 'Mail', nodeColor: 'action' },
-  'send-sms': { id: 'send-sms', type: 'action', label: 'Send SMS', description: 'Send SMS message', iconName: 'MessageSquare', nodeColor: 'action' },
-  'add-tag': { id: 'add-tag', type: 'action', label: 'Add Tag', description: 'Apply relationship tag', iconName: 'Tag', nodeColor: 'action' },
-  'create-task': { id: 'create-task', type: 'action', label: 'Create Task', description: 'Generate follow-up task', iconName: 'ListChecks', nodeColor: 'action' },
-  'assign-owner': { id: 'assign-owner', type: 'action', label: 'Assign Owner', description: 'Route to correct agent', iconName: 'Bot', nodeColor: 'action' },
+const getNodeTemplate = (key) => {
+  const allNodes = getAllNodes();
+  return allNodes.find(n => n.id === key);
 };
 
 export const generateFlowFromIntent = async (alphaPlan) => {
@@ -39,7 +29,7 @@ export const generateFlowFromIntent = async (alphaPlan) => {
   const edges = [];
 
   // Trigger Node
-  const triggerTemplate = NODE_TEMPLATES[trigger] || NODE_TEMPLATES['manual-trigger'];
+  const triggerTemplate = getNodeTemplate(trigger) || getNodeTemplate('manual-trigger');
   const triggerNode = createNode(triggerTemplate, { x: 40, y: 160 });
   nodes.push(triggerNode);
 
@@ -48,7 +38,7 @@ export const generateFlowFromIntent = async (alphaPlan) => {
   let lastNodeId = triggerNode.id;
 
   actions.forEach((actionKey, index) => {
-    const actionTemplate = NODE_TEMPLATES[actionKey] || NODE_TEMPLATES['send-email'];
+    const actionTemplate = getNodeTemplate(actionKey) || getNodeTemplate('send-email');
     const actionNode = createNode(actionTemplate, { x: currentX, y: 160 + (index * 28) });
     nodes.push(actionNode);
 

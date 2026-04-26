@@ -251,6 +251,7 @@ export const triggerNodes = [
     description: 'Start when a booking is cancelled',
     iconName: 'Calendar',
     nodeColor: 'trigger',
+    status: 'live',
     event: 'booking_cancelled',
   },
   {
@@ -385,10 +386,9 @@ export const messagingNodes = [
 ];
 
 /**
- * Utilities/Data Nodes
  * Data manipulation and storage
  */
-export const utilityNodes = [
+export const dataNodes = [
   {
     id: 'store-data',
     type: 'action',
@@ -405,7 +405,13 @@ export const utilityNodes = [
     iconName: 'Settings',
     nodeColor: 'action',
   },
-    {
+];
+
+/**
+ * Input Nodes
+ */
+export const inputNodes = [
+  {
     id: 'user-input',
     type: 'input',
     label: 'Attach Form',
@@ -433,6 +439,12 @@ export const utilityNodes = [
       prompt: '',
     },
   },
+];
+
+/**
+ * Booking Nodes
+ */
+export const bookingNodes = [
   {
     id: 'create-booking',
     type: 'action',
@@ -469,6 +481,12 @@ export const utilityNodes = [
     nodeColor: 'action',
     actionType: 'get_booking',
   },
+];
+
+/**
+ * Verification Nodes
+ */
+export const verificationNodes = [
   {
     id: 'verify-email',
     type: 'action',
@@ -497,13 +515,19 @@ export const utilityNodes = [
       writeback: true,
     },
   },
+];
+
+/**
+ * Media Nodes
+ */
+export const mediaNodes = [
   {
     id: 'generate-script',
     type: 'action',
     label: 'Generate Script',
     description: 'Create a script job and structured script artifact',
     iconName: 'FileText',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_script',
     config: {
       actionType: 'generate_script',
@@ -519,7 +543,7 @@ export const utilityNodes = [
     label: 'Generate Run of Show',
     description: 'Create a structured show plan artifact',
     iconName: 'ListChecks',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_run_of_show',
     config: {
       actionType: 'generate_run_of_show',
@@ -529,30 +553,30 @@ export const utilityNodes = [
     },
   },
   {
-    id: 'generate-voice',
+    id: 'text-to-speech',
     type: 'action',
-    label: 'Generate Voice',
-    description: 'Render audio from script or text input',
+    label: 'Text to Speech',
+    description: 'Render audio from script or text input (Legacy)',
     iconName: 'Headphones',
-    nodeColor: 'action',
-    actionType: 'generate_voice',
+    nodeColor: 'media',
+    actionType: 'text_to_speech',
     config: {
-      actionType: 'generate_voice',
+      actionType: 'text_to_speech',
       text: '',
       voice: 'Rachel',
       provider: 'elevenlabs_tts',
     },
   },
   {
-    id: 'text-to-speech',
+    id: 'generate-voice',
     type: 'action',
-    label: 'Text to Speech',
+    label: 'Generate Voice',
     description: 'Render audio from script or text input',
     iconName: 'Headphones',
-    nodeColor: 'action',
-    actionType: 'text_to_speech',
+    nodeColor: 'media',
+    actionType: 'generate_voice',
     config: {
-      actionType: 'text_to_speech',
+      actionType: 'generate_voice',
       text: '',
       voice: 'Rachel',
       provider: 'elevenlabs_tts',
@@ -564,7 +588,7 @@ export const utilityNodes = [
     label: 'Generate Thumbnail',
     description: 'Create an image asset through the media engine',
     iconName: 'Image',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_thumbnail',
     config: {
       actionType: 'generate_thumbnail',
@@ -579,7 +603,7 @@ export const utilityNodes = [
     label: 'Generate Video',
     description: 'Create a render job through the media engine',
     iconName: 'Image',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_video',
     config: {
       actionType: 'generate_video',
@@ -594,7 +618,7 @@ export const utilityNodes = [
     label: 'Transcribe Media',
     description: 'Create a transcript job for media or transcript input',
     iconName: 'Headphones',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'transcribe_media',
     config: {
       actionType: 'transcribe_media',
@@ -611,7 +635,7 @@ export const utilityNodes = [
     label: 'Transcript Intelligence',
     description: 'Generate structured summary, actions, topics, highlights, and content ideas from transcript output',
     iconName: 'Sparkles',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_transcript_intelligence',
     config: {
       actionType: 'generate_transcript_intelligence',
@@ -627,7 +651,7 @@ export const utilityNodes = [
     label: 'Ingest Meeting',
     description: 'Normalize meeting artifacts into the media engine',
     iconName: 'UploadCloud',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'ingest_meeting_artifacts',
     config: {
       actionType: 'ingest_meeting_artifacts',
@@ -642,7 +666,7 @@ export const utilityNodes = [
     label: 'Publish Asset',
     description: 'Track publication of the latest media asset or artifact',
     iconName: 'Send',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'publish_asset',
     config: {
       actionType: 'publish_asset',
@@ -656,7 +680,7 @@ export const utilityNodes = [
     label: 'Generate Image',
     description: 'Create an image from a text prompt via AI provider',
     iconName: 'Sparkles',
-    nodeColor: 'action',
+    nodeColor: 'media',
     actionType: 'generate_image',
     status: 'live',
     config: {
@@ -730,8 +754,11 @@ export const nodeLibrary = {
   'Logic/Condition': logicNodes,
   'Webhook/API': webhookNodes,
   Messaging: messagingNodes,
-  Media: utilityNodes.filter((node) => ['generate_script', 'generate_run_of_show', 'generate_transcript_intelligence', 'generate_voice', 'text_to_speech', 'generate_thumbnail', 'generate_video', 'transcribe_media', 'ingest_meeting_artifacts', 'publish_asset'].includes(node.actionType)).map((node) => ({ ...node, nodeColor: 'media' })),
-  'Utilities/Data': utilityNodes,
+  Data: dataNodes,
+  Input: inputNodes,
+  Verification: verificationNodes,
+  Booking: bookingNodes,
+  Media: mediaNodes,
   'AI Agents': toolNodeTemplates.map((tool) => ({
     ...tool,
     id: `tool-${tool.id}`,

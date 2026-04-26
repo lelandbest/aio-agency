@@ -2507,6 +2507,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               <div className={`flex-1 flex flex-col ${rightPanelTab === 'details' ? 'flex' : 'hidden'}`}>
                 <FlowInfoPanel
                   flow={flow}
+                  selectedNode={nodes.find(n => n.selected && !n.data?.isGhost)}
                   onFlowUpdate={handleFlowUpdate}
                   onApplyDraft={applyDraftToCanvas}
                   onInsertFormTrigger={insertFormTrigger}
