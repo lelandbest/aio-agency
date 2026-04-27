@@ -641,6 +641,8 @@ export async function getUserAccessApi(email) {
   return response.data || null;
 }
 
+// DO NOT import getFlowsApi directly in UI components.
+// Use FlowsService from /services instead.
 export async function getFlowsApi() {
   const response = await request('/api/flows');
   return response.data || [];
@@ -1258,6 +1260,8 @@ export function getGoogleAppAuthorizeUrl() {
   return withSessionToken(`${API_BASE_URL}/api/auth/google/authorize`);
 }
 
+// DO NOT import getContactsApi directly in UI components.
+// Use ContactsService from /services instead.
 export async function getContactsApi() {
   const response = await request('/api/contacts');
   return response.data || [];
@@ -1634,6 +1638,8 @@ export async function deleteFormFolderApi(folderId) {
   });
 }
 
+// DO NOT import getFormsApi directly in UI components.
+// Use FormsService from /services instead.
 export async function getFormsApi(summary = false) {
   const response = await request(`/api/forms?summary=${summary}`);
   return response.data || [];

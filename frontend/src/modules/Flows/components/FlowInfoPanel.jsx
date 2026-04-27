@@ -6,7 +6,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Edit2, User, Clock, Hash, FileText, Settings } from 'lucide-react';
-import { getFormsApi } from '../../../services/backendApi';
 
 const FlowInfoPanel = ({
   flow,
@@ -17,10 +16,11 @@ const FlowInfoPanel = ({
   onInsertFormTrigger,
   onSaveAsTemplate,
   showDetails = false,
+  formsList = [],
+  onFetchForms = null,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(flow?.name || 'Untitled Flow');
-  const [forms, setForms] = useState([]);
   const [selectedForm, setSelectedForm] = useState(null);
 
   const handleNameSave = () => {
@@ -34,7 +34,9 @@ const FlowInfoPanel = ({
   };
 
   useEffect(() => {
-    getFormsApi().then((data) => setForms(data || [])).catch(() => setForms([]));
+    if (onFetchForms && formsList.length === 0) {
+      onFetchForms().catch(() => {});
+    }
   }, []);
 
   useEffect(() => {

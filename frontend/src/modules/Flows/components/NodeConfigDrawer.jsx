@@ -7,7 +7,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, ChevronRight } from 'lucide-react';
 import { getAllNodes } from '../data/nodeLibrary';
-import { getFormsApi } from '../../../services/backendApi';
 import NodeOutputInspector from './NodeOutputInspector';
 
 
@@ -354,9 +353,8 @@ const applyDefaultVideoTemplate = (nextConfig, videoTemplateOptions = []) => {
   };
 };
 
-const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions = [], nodes = [], edges = [], runDetail = null }) => {
+const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions = [], nodes = [], edges = [], runDetail = null, formsList = [], onFetchForms = null }) => {
   const [config, setConfig] = useState(applyDefaultVideoTemplate(node?.data?.config || {}, videoTemplateOptions));
-  const [forms, setForms] = useState([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [activeTab, setActiveTab] = useState('DATA');
 
@@ -369,22 +367,11 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
       node?.data?.id === 'form-submitted-trigger' || 
       node?.data?.id === 'user-input' ||
       node?.data?.templateId === 'user-input'
-    )) {
-      loadForms();
+    ) && onFetchForms && formsList.length === 0) {
+      setLoadingForms(true);
+      onFetchForms().finally(() => setLoadingForms(false));
     }
-  }, [isOpen, node]);
-
-  const loadForms = async () => {
-    setLoadingForms(true);
-    try {
-      const data = await getFormsApi();
-      setForms(data?.data || []);
-    } catch (err) {
-      console.error('Error loading forms:', err);
-    } finally {
-      setLoadingForms(false);
-    }
-  };
+  }, [isOpen, node, onFetchForms, formsList.length]);
 
   if (!node || !isOpen) return null;
 
@@ -444,7 +431,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 <div className="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
                   <Loader2 size={14} className="animate-spin" /> Loading forms...
                 </div>
-              ) : forms.length > 0 ? (
+              ) : formsList.length > 0 ? (
                 <div className="space-y-1">
                   <select
                     multiple
@@ -454,10 +441,10 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                       handleInputChange('formIds', selected);
                     }}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    size={Math.min(forms.length + 1, 6)}
+                    size={Math.min(formsList.length + 1, 6)}
                   >
                     <option value="">Any form</option>
-                    {forms.map(form => (
+                    {formsList.map(form => (
                       <option key={form.id} value={form.id}>{form.name}</option>
                     ))}
                   </select>
@@ -875,14 +862,14 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 <div className="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
                   <Loader2 size={14} className="animate-spin" /> Loading forms...
                 </div>
-              ) : forms.length > 0 ? (
+              ) : formsList.length > 0 ? (
                 <select
                   value={config.formId || config.existingFormId || ''}
                   onChange={(e) => handleInputChange('formId', e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 >
                   <option value="">Select a form...</option>
-                  {forms.map(form => (
+                  {formsList.map(form => (
                     <option key={form.id} value={form.id}>{form.name}</option>
                   ))}
                 </select>

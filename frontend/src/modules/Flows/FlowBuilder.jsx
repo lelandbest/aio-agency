@@ -45,6 +45,7 @@ import {
   importWorkflowJsonApi,
   getMediaRenderTemplatesApi,
 } from '../../services/backendApi';
+import { FormsService } from '../../services/forms.service';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
@@ -447,6 +448,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [showAiModal, setShowAiModal] = useState(false);
   const [customTemplates, setCustomTemplates] = useState([]);
   const [mediaRenderTemplates, setMediaRenderTemplates] = useState([]);
+  const [formsList, setFormsList] = useState([]);
+
+  const fetchFormsList = useCallback(async () => {
+    try {
+      const data = await FormsService.fetchForms();
+      const forms = Array.isArray(data) ? data : (data?.data || []);
+      setFormsList(forms);
+      return forms;
+    } catch (err) {
+      console.error('Failed to fetch forms:', err);
+      return [];
+    }
+  }, []);
 
   // Terminal state
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -2517,6 +2531,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   onInsertFormTrigger={insertFormTrigger}
                   onSaveAsTemplate={handleSaveAsTemplate}
                   showDetails={true}
+                  formsList={formsList}
+                  onFetchForms={fetchFormsList}
                 />
                 <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
                   <div className="rounded-xl border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.6))] px-4 py-4 text-center shadow-[0_14px_32px_rgba(2,6,23,0.28)]">
@@ -3882,6 +3898,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onSave={handleConfigSave}
         videoTemplateOptions={mediaRenderTemplates}
         runDetail={latestRunDetail}
+        formsList={formsList}
+        onFetchForms={fetchFormsList}
       />
 
       {/* History panel successfully relocated entirely to Details dock Tab */}

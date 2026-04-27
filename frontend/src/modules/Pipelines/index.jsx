@@ -17,7 +17,8 @@ import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
-import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi, toSnakeCase } from '../../services/backendApi';
+import { draftAiApi, openThreadForContactApi, updateContactApi, toSnakeCase } from '../../services/backendApi';
+import { ContactsService } from '../../services/contacts.service';
 
 const STORAGE_KEY = 'aio_pipelines_layout_v2';
 const BOARDS_STORAGE_KEY = 'aio_pipelines_boards_v1';
@@ -105,7 +106,7 @@ const PipelinesModule = () => {
   const loadContacts = async () => {
     setLoading(true);
     try {
-      const data = await getContactsApi();
+      const data = await ContactsService.fetchContacts();
       setContacts((data || []).filter((contact) => !contact.deletedAt));
     } catch (error) {
       console.error('Error loading pipeline contacts:', error);

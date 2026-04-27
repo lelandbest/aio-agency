@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getFormsApi, getCmsTableDataApi } from '../../services/backendApi';
+import { getCmsTableDataApi } from '../../services/backendApi';
+import { FormsService } from '../../services/forms.service';
 import { FileText, List, Grid3X3, Download, Loader2 } from 'lucide-react';
 
 export default function CRMCmsTab() {
@@ -22,7 +23,7 @@ export default function CRMCmsTab() {
     const loadForms = async () => {
       setLoadingTables(true);
       try {
-        const forms = await getFormsApi();
+        const forms = await FormsService.fetchForms();
         setTables((forms || []).map(f => ({
           id: f.id,
           slug: f.slug || f.id,

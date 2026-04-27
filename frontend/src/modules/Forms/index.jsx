@@ -7,7 +7,6 @@ import {
   bulkDeleteFormsApi,
   getCmsTablesApi,
   getFormFoldersApi,
-  getFormsApi,
   getVaultApi,
   uploadMediaFileApi,
   updateFormApi,
@@ -15,6 +14,7 @@ import {
   normalizeSourceUrl,
   deleteMediaAssetApi
 } from '../../services/backendApi';
+import { FormsService } from '../../services/forms.service';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -401,7 +401,7 @@ const FormBuilderModule = () => {
   const fetchForms = async () => {
     setLoading(true);
     try {
-      const data = await getFormsApi();
+      const data = await FormsService.fetchForms();
       setForms(Array.isArray(data) ? data.map(normalizeFormRecord) : []);
     } catch (error) {
       console.error('Error loading forms:', error);

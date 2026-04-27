@@ -46,9 +46,6 @@ import {
   getCommsContactSummaryApi,
   getContactActivitiesApi,
   getContactFormSubmissionsApi,
-  getContactsApi,
-  getFlowsApi,
-  getFormsApi,
   getOrdersApi,
   getTagsApi,
   listDeletedContactsApi,
@@ -58,6 +55,9 @@ import {
   updateContactApi,
   toSnakeCase,
 } from '../../services/backendApi';
+import { FormsService } from '../../services/forms.service';
+import { FlowsService } from '../../services/flows.service';
+import { ContactsService } from '../../services/contacts.service';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -801,7 +801,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
       const [nextContacts, nextDeletedContacts, nextCompanies, nextTags] = await Promise.all([
-        getContactsApi(),
+        ContactsService.fetchContacts(),
         listDeletedContactsApi(),
         getCompaniesApi(),
         getTagsApi(),
@@ -810,8 +810,8 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
       const secondaryResults = await Promise.allSettled([
         getOrdersApi(),
         getCalendarEventsApi(),
-        getFlowsApi(),
-        getFormsApi(true),
+        FlowsService.fetchFlows(),
+        FormsService.fetchForms(true),
       ]);
 
       // Batched State Update

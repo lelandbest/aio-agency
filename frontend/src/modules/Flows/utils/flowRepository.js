@@ -3,12 +3,13 @@
  * Backend-backed flow persistence.
  */
 
-import { getFlowApi, getFlowsApi, saveFlowApi } from '../../../services/backendApi';
+import { getFlowApi, saveFlowApi } from '../../../services/backendApi';
+import { FlowsService } from '../../../services/flows.service';
 import { generateULID } from './ulid';
 
 export const createFlowRepository = () => {
   const getAllFlows = async () => {
-    const flows = await getFlowsApi();
+    const flows = await FlowsService.fetchFlows();
     return Object.fromEntries((flows || []).map((flow) => [flow.id, flow]));
   };
 
