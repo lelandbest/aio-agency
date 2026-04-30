@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getCmsTablesApi } from '../../services/backendApi';
+import { CrmService } from '../../services/crm.service';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import { Database, Table, Search, Download } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
   useEffect(() => {
     (async () => {
       try {
-        const data = await getCmsTablesApi();
+        const data = await CrmService.getCmsTables();
         setCmsTables(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error('Error loading cms_tables:', e);

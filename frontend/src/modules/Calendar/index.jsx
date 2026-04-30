@@ -1,26 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink, Search, Video, Phone, RefreshCw } from 'lucide-react';
-import {
-  createBookingTypeApi,
-  createCalendarEventApi,
-  createCalendarSourceApi,
-  deleteBookingTypeApi,
-  deleteCalendarEventApi,
-  getCalendarSourceAuthorizeUrl,
-  getBookingTypesApi,
-  getCalendarsApi,
-  getCalendarEventsApi,
-  getCalendarProvidersApi,
-  getCalendarSourcesApi,
-  importCalendarSourceApi,
-  pushCalendarEventApi,
-  reconcileCalendarEventApi,
-  syncCalendarSourceApi,
-  testCalendarSourceApi,
-  updateBookingTypeApi,
-  updateCalendarEventApi,
-  updateCalendarSourceApi
-} from '../../services/backendApi';
+import { CalendarService } from '../../services/calendar.service';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { generateZoomLink, generateGoogleMeetLink } from '../../services/videoCallService';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -162,28 +142,28 @@ const CalendarModule = ({ clientMode = false }) => {
     let backendCalendars = [];
     let backendBookers = [];
     try {
-      backendCalendars = await getCalendarsApi();
+      backendCalendars = await CalendarService.getCalendars();
     } catch {
       backendCalendars = [];
     }
     try {
-      backendEvents = (await getCalendarEventsApi()).map(normalizeBackendEvent);
+      backendEvents = (await CalendarService.getCalendarEvents()).map(normalizeBackendEvent);
     } catch {
       backendEvents = [];
     }
     if (!clientMode) {
       try {
-        backendBookers = await getBookingTypesApi();
+        backendBookers = await CalendarService.getBookingTypes();
       } catch {
         backendBookers = [];
       }
       try {
-        sources = await getCalendarSourcesApi();
+        sources = await CalendarService.getCalendarSources();
       } catch {
         sources = [];
       }
       try {
-        providers = await getCalendarProvidersApi();
+        providers = await CalendarService.getCalendarProviders();
       } catch {
         providers = DEFAULT_CALENDAR_PROVIDERS;
       }
@@ -296,9 +276,9 @@ const CalendarModule = ({ clientMode = false }) => {
 
   const handleSaveEvent = async (eventData) => {
     if (selectedEvent) {
-      await updateCalendarEventApi(selectedEvent.id, eventData);
+      await CalendarService.updateCalendarEvent(selectedEvent.id, eventData);
     } else {
-      await createCalendarEventApi({
+      await CalendarService.createCalendarEvent({
         ...eventData,
         calendarId: calendars.find(c => c.isDefault)?.id || calendars[0]?.id,
         status: 'scheduled',
@@ -315,16 +295,16 @@ const CalendarModule = ({ clientMode = false }) => {
       setShowEventModal(false);
       return;
     }
-    await deleteCalendarEventApi(eventId);
+    await CalendarService.deleteCalendarEvent(eventId);
     fetchData();
     setShowEventModal(false);
   };
 
   const handleSaveBooker = async (bookerData) => {
     if (selectedBooker) {
-      await updateBookingTypeApi(selectedBooker.id, bookerData);
+      await CalendarService.updateBookingType(selectedBooker.id, bookerData);
     } else {
-      await createBookingTypeApi({
+      await CalendarService.createBookingType({
         ...bookerData,
         slug: bookerData.name.toLowerCase().replace(/\s+/g, '-'),
         is_active: true
@@ -335,13 +315,13 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   const handleDeleteBooker = async (bookerId) => {
-    await deleteBookingTypeApi(bookerId);
+    await CalendarService.deleteBookingType(bookerId);
     fetchData();
     setShowBookerModal(false);
   };
 
   const handleGuestBooking = async (bookingData) => {
-    await createCalendarEventApi({
+    await CalendarService.createCalendarEvent({
       ...bookingData,
       calendarId: calendars.find(c => c.name === 'AIO Booking')?.id || calendars[0]?.id,
       status: 'scheduled',
@@ -352,7 +332,7 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   const handleStatusChange = async (eventId, newStatus) => {
-    await updateCalendarEventApi(eventId, { status: newStatus });
+    await CalendarService.updateCalendarEvent(eventId, { status: newStatus });
     fetchData();
   };
 
@@ -411,7 +391,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleSaveCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, sourceForm);
       setCalendarNotice({ tone: 'success', message: 'Calendar source saved.' });
       fetchData();
     } catch (error) {
@@ -422,8 +402,8 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleTestCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
-      const response = await testCalendarSourceApi(selectedCalendarSource.id);
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, sourceForm);
+      const response = await CalendarService.testCalendarSource(selectedCalendarSource.id);
       setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
       fetchData();
     } catch (error) {
@@ -434,7 +414,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleSyncCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     try {
-      const response = await syncCalendarSourceApi(selectedCalendarSource.id);
+      const response = await CalendarService.syncCalendarSource(selectedCalendarSource.id);
       setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar source synced.' });
       fetchData();
     } catch (error) {
@@ -445,7 +425,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleImportCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     try {
-      const response = await importCalendarSourceApi(selectedCalendarSource.id);
+      const response = await CalendarService.importCalendarSource(selectedCalendarSource.id);
       const importedCount = response?.result?.imported_count || 0;
       const conflictedCount = response?.result?.conflicted_count || 0;
       setCalendarNotice({
@@ -463,7 +443,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleCreateCalendarSource = async () => {
     if (!sourceDraft.name.trim()) return;
     try {
-      const source = await createCalendarSourceApi(sourceDraft);
+      const source = await CalendarService.createCalendarSource(sourceDraft);
       setCalendarNotice({ tone: 'success', message: 'Calendar source created.' });
       setShowSourceComposer(false);
       setSourceDraft(createCalendarSourceDraft());
@@ -477,8 +457,8 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleAuthorizeCalendarSource = async () => {
     if (!selectedCalendarSource?.id || !isCalendarOauthProvider(sourceForm.provider)) return;
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
-      const result = await openOAuthPopup(getCalendarSourceAuthorizeUrl(selectedCalendarSource.id), 'calendar');
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, sourceForm);
+      const result = await openOAuthPopup(CalendarService.getCalendarSourceAuthorizeUrl(selectedCalendarSource.id), 'calendar');
       setCalendarNotice({
         tone: 'success',
         message: `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarSourceProvider.label}.`
@@ -491,7 +471,7 @@ const CalendarModule = ({ clientMode = false }) => {
 
   const handlePushEvent = async (eventId) => {
     try {
-      const response = await pushCalendarEventApi(eventId, selectedCalendarSource?.id || null);
+      const response = await CalendarService.pushCalendarEvent(eventId, selectedCalendarSource?.id || null);
       setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Event pushed to calendar source.' });
       fetchData();
     } catch (error) {
@@ -501,7 +481,7 @@ const CalendarModule = ({ clientMode = false }) => {
 
   const handleReconcileEvent = async (eventId, strategy) => {
     try {
-      const response = await reconcileCalendarEventApi(eventId, strategy);
+      const response = await CalendarService.reconcileCalendarEvent(eventId, strategy);
       setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar event reconciled.' });
       fetchData();
     } catch (error) {

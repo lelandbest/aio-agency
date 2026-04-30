@@ -243,35 +243,75 @@ function closeSignupModal() {
     }
 }
 
-function handleSignupSubmit(event) {
+async function handleSignupSubmit(event) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
+    const rawData = Object.fromEntries(formData.entries());
     
-    console.log('Signup submitted:', data);
+    // Split name into first and last
+    const nameParts = (rawData.name || '').trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
     
-    const formContainer = form;
-    formContainer.innerHTML = `
-        <div class="signup-success">
-            <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                <path d="M22 4L12 14.01l-3-3"/>
-            </svg>
-            <h3>You're on the list!</h3>
-            <p>We'll send an email to <strong>${data.email}</strong> when your access is ready.</p>
-        </div>
-    `;
+    const payload = {
+        firstName: firstName,
+        lastName: lastName,
+        email: rawData.email,
+        phone: rawData.phone,
+        deployLevel: rawData.plan || ''
+    };
     
-    const style = document.createElement('style');
-    style.textContent = `
-        .signup-success { text-align: center; padding: 40px 0; }
-        .success-icon { width: 64px; height: 64px; color: var(--accent-brass); margin-bottom: 16px; }
-        .signup-success h3 { font-size: 1.5rem; margin-bottom: 12px; }
-        .signup-success p { color: var(--text-secondary); }
-        .signup-success strong { color: var(--accent-brass); }
-    `;
-    formContainer.prepend(style);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnContent = submitBtn.innerHTML;
+    
+    // Set loading state
+    submitBtn.innerHTML = '<span>Sending...</span>';
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('https://go.aioflow.com/api/input/1ublf0/contact?public_key=HH27IrpCd4OWCs643NsL', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        console.log('Signup submitted successfully');
+        
+        const formContainer = form;
+        formContainer.innerHTML = `
+            <div class="signup-success">
+                <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                    <path d="M22 4L12 14.01l-3-3"/>
+                </svg>
+                <h3>You're on the list!</h3>
+                <p>We'll send an email to <strong>${payload.email}</strong> when your access is ready.</p>
+            </div>
+        `;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            .signup-success { text-align: center; padding: 40px 0; }
+            .success-icon { width: 64px; height: 64px; color: var(--accent-brass); margin-bottom: 16px; }
+            .signup-success h3 { font-size: 1.5rem; margin-bottom: 12px; }
+            .signup-success p { color: var(--text-secondary); }
+            .signup-success strong { color: var(--accent-brass); }
+        `;
+        formContainer.prepend(style);
+        
+    } catch (error) {
+        console.error('Submission failed:', error);
+        alert('There was a problem submitting the form. Please try again.');
+        submitBtn.innerHTML = originalBtnContent;
+        submitBtn.disabled = false;
+    }
 }
 
 // Close modal on escape key

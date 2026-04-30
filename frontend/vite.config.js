@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 import fs from "fs";
 import path from "path";
 import net from "net";
@@ -57,7 +58,37 @@ export default defineConfig(async () => {
   const publicHost = env.VITE_PUBLIC_HOST || "";
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: "autoUpdate",
+        manifest: {
+          name: "AIO Agency",
+          short_name: "AIO",
+          start_url: "/",
+          display: "standalone",
+          background_color: "#070708",
+          theme_color: "#070708",
+          icons: [
+            {
+              src: "aio-button-192px.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "aio-button-512px.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+          navigateFallback: "index.html",
+          runtimeCaching: [],
+        },
+      }),
+    ],
 
     build: {
       chunkSizeWarningLimit: 800,

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAIAssist } from '../contexts/AIAssistContext';
-import { getOperatorAssistResponseApi } from '../services/backendApi';
+import { AiService } from '../services/ai.service';
 
 const STARTER_PROMPTS = [
   "Why didn't my booking flow run?",
@@ -126,7 +126,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     ]);
 
     try {
-      const response = await getOperatorAssistResponseApi({
+      const response = await AiService.getOperatorAssistResponse({
         message,
         context: { 
           ...currentContext, 

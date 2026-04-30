@@ -3,7 +3,7 @@ import { Mic, MicOff, Send, X, ChevronRight, MessageSquare, Lock, Square, Volume
 import { useVTT } from '../../contexts/VTTContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useVoiceCommand } from '../../hooks/useVoiceCommand';
-import { request } from '../../services/backendApi';
+import { AiService } from '../../services/ai.service';
 
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
 const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
@@ -441,10 +441,7 @@ export default function VoiceCommandModule() {
 
     try {
       if (isCommand) {
-        const res = await request('/api/vtt/command', {
-          method: 'POST',
-          body: JSON.stringify({ transcript: raw, context: {}, voiceEnabled, voiceProvider, voiceAutoPlay }),
-        });
+        const res = await AiService.sendVttCommand({ transcript: raw, context: {}, voiceEnabled, voiceProvider, voiceAutoPlay });
 
         if (res.type === 'command') {
           const result = { ...(res.result || {}), ...(res.command || {}), response: res.response };
@@ -460,9 +457,7 @@ export default function VoiceCommandModule() {
           if (voiceEnabled && voiceAutoPlay && msg) playResponse(res.audioUrl, msg);
         }
       } else {
-        const res = await request('/api/ai/command', {
-          method: 'POST',
-          body: JSON.stringify({ 
+        const res = await AiService.sendAiCommandRaw({ 
             command: raw, 
             intent: 'conversation',
             agent: selectedAgent || 'CHARLIE',
@@ -473,8 +468,7 @@ export default function VoiceCommandModule() {
               targetAgent: selectedAgent,
               collab: isCollab 
             }
-          }),
-        });
+          });
         const spokenText =
           res.result?.message ||
           res.result?.response?.answer ||

@@ -34,34 +34,9 @@ import ModuleHeader from '../../components/ModuleHeader';
 import VaultPage from './VaultPage';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BullseyeIcon } from '../../components/ui/icons';
-import {
-  createMediaAudioRenderJobApi,
-  createMediaRenderJobApi,
-  createMediaRunOfShowJobApi,
-  createMediaScriptJobApi,
-  createMediaTranscriptJobApi,
-  getMediaRenderTemplatesApi,
-  getVaultApi,
-  getMediaAudioRenderJobsApi,
-  getMediaPublishJobsApi,
-  getMediaRenderJobsApi,
-  getMediaJobStatusApi,
-  getMediaRunOfShowJobsApi,
-  getMediaScriptJobsApi,
-  getMediaTranscriptJobsApi,
-  ingestMeetingMediaApi,
-  createMediaPublishJobApi,
-  uploadMediaFileApi,
-  runAiCommandApi,
-  deleteMediaJobApi,
-  deleteMediaArtifactApi,
-  deleteMediaAssetApi,
-  getApiBaseUrl,
-  probeMediaAssetApi,
-  withSessionToken,
-  getBrainItemsApi,
-  generateAudioAssetApi,
-} from '../../services/backendApi';
+import { MediaService } from '../../services/media.service';
+import { AiService } from '../../services/ai.service';
+import { BrainService } from '../../services/brain.service';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import { templates } from '../Flows/data/templates';
 import { ingestFlowSource } from '../Flows/utils/flowIngestion';
@@ -491,8 +466,8 @@ const StudioModule = () => {
     const fetchRailData = async () => {
       try {
         const [vaultData, cortexData] = await Promise.allSettled([
-          getVaultApi(),
-          getBrainItemsApi(),
+          MediaService.getVault(),
+          BrainService.getBrainItems(),
         ]);
         if (!active) return;
         if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
@@ -507,7 +482,7 @@ const StudioModule = () => {
     let active = true;
     const loadMediaRenderTemplates = async () => {
       try {
-        const data = await getMediaRenderTemplatesApi();
+        const data = await MediaService.getMediaRenderTemplates();
         if (!active) return;
         setMediaRenderTemplates(Array.isArray(data?.templates) ? data.templates : []);
       } catch (_) {
@@ -576,9 +551,9 @@ const StudioModule = () => {
         scriptJobs, runOfShowJobs,
         audioRenderJobs, publishJobs
       ] = await Promise.all([
-        getVaultApi(), getMediaRenderJobsApi(), getMediaTranscriptJobsApi(),
-        getMediaScriptJobsApi(), getMediaRunOfShowJobsApi(),
-        getMediaAudioRenderJobsApi(), getMediaPublishJobsApi()
+        MediaService.getVault(), MediaService.getMediaRenderJobs(), MediaService.getMediaTranscriptJobs(),
+        MediaService.getMediaScriptJobs(), MediaService.getMediaRunOfShowJobs(),
+        MediaService.getMediaAudioRenderJobs(), MediaService.getMediaPublishJobs()
       ]);
 
       const jobs = [
@@ -731,7 +706,7 @@ const StudioModule = () => {
     setProbePending(true);
     setLastAction({ type: 'PROBE', status: 'running', timestamp: Date.now() });
     try {
-      const result = await probeMediaAssetApi({ sourceUrl: output.sourceUrl, assetId: output.assetId });
+      const result = await MediaService.probeMediaAsset({ sourceUrl: output.sourceUrl, assetId: output.assetId });
       setProbeData(result);
       setLastAction(prev => ({ ...prev, status: 'success', result: `METADATA RETRIEVED [${result.duration || '??'}s]` }));
     } catch (e) {
@@ -751,7 +726,7 @@ const StudioModule = () => {
       const poll = async () => {
         try {
           const normalizedJobType = normalizeMediaJobType(activeJob.type);
-          const job = await getMediaJobStatusApi(normalizedJobType, activeJob.id);
+          const job = await MediaService.getMediaJobStatus(normalizedJobType, activeJob.id);
           if (!job) {
             await handlePollFailure('Media job status returned an empty response.');
             timer = setTimeout(poll, 4000);
@@ -1006,7 +981,7 @@ const StudioModule = () => {
       return rawUrl;
     }
     if (rawUrl.startsWith('/api/')) {
-      return withSessionToken(`${getApiBaseUrl()}${rawUrl}`);
+      return MediaService.buildAssetUrl(rawUrl);
     }
     return rawUrl;
   }, [activeOutput?.sourceUrl, isNonMedia]);
@@ -1190,7 +1165,7 @@ const StudioModule = () => {
         : 'Provide a media URL or JSON payload to ingest.');
     }
 
-    const result = await ingestMeetingMediaApi(payload);
+    const result = await MediaService.ingestMeetingMedia(payload);
     await syncMediaMutation(result, actionLabel);
   }, [formState.mediaUrl, formState.meetingId, formState.meetingProvider, formState.meetingTitle, formState.rawPayload, formState.title, nexusMode, syncMediaMutation]);
 
@@ -1201,7 +1176,7 @@ const StudioModule = () => {
     setLastAction({ type: 'FILE INGEST', status: 'running', result: null, error: null, timestamp: Date.now() });
     setError('');
     try {
-      const result = await uploadMediaFileApi(file);
+      const result = await MediaService.uploadMediaFile(file);
       await syncMediaMutation(result, 'FILE INGEST');
     } catch (e) {
       setError(e.message);
@@ -1221,7 +1196,7 @@ const StudioModule = () => {
       setLastAction({ type: 'FILE INGEST', status: 'running', result: null, error: null, timestamp: Date.now() });
       setError('');
       try {
-        const result = await uploadMediaFileApi(file);
+        const result = await MediaService.uploadMediaFile(file);
         await syncMediaMutation(result, 'FILE INGEST');
       } catch (e) {
         setError(e.message);
@@ -1267,15 +1242,15 @@ const StudioModule = () => {
       if (selectedAction === 'generateScript') {
         const isRunOfShow = formState.scriptMode === 'runofshow';
         if (isRunOfShow) {
-          r = await createMediaRunOfShowJobApi({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic, description: formState.description });
+          r = await MediaService.createMediaRunOfShowJob({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic, description: formState.description });
         } else {
-          r = await createMediaScriptJobApi({ provider: activeAction.provider, title: formState.title || 'Script', topic: formState.topic, tone: formState.tone, duration: formState.duration });
+          r = await MediaService.createMediaScriptJob({ provider: activeAction.provider, title: formState.title || 'Script', topic: formState.topic, tone: formState.tone, duration: formState.duration });
         }
       }
-      else if (selectedAction === 'generateVoice') r = await createMediaAudioRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Voice', text: formState.text, voice: formState.voice, style: formState.style });
-      else if (selectedAction === 'generateMusic') r = await generateAudioAssetApi({ audioSubtype: 'music', prompt: formState.audioGeneratePrompt || formState.prompt || 'Background music', title: formState.title || 'Music', duration: formState.audioGenerateDuration || 8 });
-      else if (selectedAction === 'generateSfx') r = await generateAudioAssetApi({ audioSubtype: 'sfx', prompt: formState.audioGeneratePrompt || formState.prompt || 'Sound effect', title: formState.title || 'SFX', duration: formState.audioGenerateDuration || 4 });
-      else if (selectedAction === 'generateThumbnail') r = await createMediaRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Thumbnail', mediaType: 'image', script: formState.prompt, metadata: { prompt: formState.prompt } });
+      else if (selectedAction === 'generateVoice') r = await MediaService.createMediaAudioRenderJob({ provider: activeAction.provider, title: formState.title || 'Voice', text: formState.text, voice: formState.voice, style: formState.style });
+      else if (selectedAction === 'generateMusic') r = await MediaService.generateAudioAsset({ audioSubtype: 'music', prompt: formState.audioGeneratePrompt || formState.prompt || 'Background music', title: formState.title || 'Music', duration: formState.audioGenerateDuration || 8 });
+      else if (selectedAction === 'generateSfx') r = await MediaService.generateAudioAsset({ audioSubtype: 'sfx', prompt: formState.audioGeneratePrompt || formState.prompt || 'Sound effect', title: formState.title || 'SFX', duration: formState.audioGenerateDuration || 4 });
+      else if (selectedAction === 'generateThumbnail') r = await MediaService.createMediaRenderJob({ provider: activeAction.provider, title: formState.title || 'Thumbnail', mediaType: 'image', script: formState.prompt, metadata: { prompt: formState.prompt } });
       else if (selectedAction === 'generateVideo') {
         // Determine audio source: TTS (includeAudio), Vault audio (audioAssetId), or none
         let audioUrl = null;
@@ -1292,7 +1267,7 @@ const StudioModule = () => {
           audioUrl = null; // backend will generate
         }
         
-        r = await createMediaRenderJobApi({
+        r = await MediaService.createMediaRenderJob({
           provider: activeAction.provider,
           title: formState.title || 'Video',
           mediaType: 'video',
@@ -1315,7 +1290,7 @@ const StudioModule = () => {
       }
 else if (selectedAction === 'transcribeMedia') {
         if (formState.mediaUrl || formState.rawPayload) {
-          r = await createMediaTranscriptJobApi({
+          r = await MediaService.createMediaTranscriptJob({
             provider: activeAction.provider,
             title: formState.title || 'Transcript',
             assetId: formState.assetId || selectedSourceAsset?.assetId || '',
@@ -1341,7 +1316,7 @@ else if (selectedAction === 'transcribeMedia') {
           if (!ingestPayload) {
             throw new Error('Provide a media URL or meeting provider details to transcribe.');
           }
-          r = await ingestMeetingMediaApi(ingestPayload);
+          r = await MediaService.ingestMeetingMedia(ingestPayload);
         } else {
           throw new Error('Provide a media URL or meeting provider details to transcribe.');
         }
@@ -1370,9 +1345,9 @@ else if (selectedAction === 'transcribeMedia') {
     const deleteTarget = pendingDelete;
     try {
       if (deleteTarget.type === 'asset') {
-        await deleteMediaAssetApi(deleteTarget.id);
+        await MediaService.deleteMediaAsset(deleteTarget.id);
       } else {
-        await deleteMediaArtifactApi(deleteTarget.type, deleteTarget.id);
+        await MediaService.deleteMediaArtifact(deleteTarget.type, deleteTarget.id);
       }
       removeOutputFromWorkspace(deleteTarget.id);
       if (activeOutputId === deleteTarget.id) setActiveOutputId(null);
@@ -1423,7 +1398,7 @@ else if (selectedAction === 'transcribeMedia') {
     if (!pendingDelete) return;
     const deleteTarget = pendingDelete;
     try {
-      await deleteMediaJobApi(deleteTarget.type, deleteTarget.id);
+      await MediaService.deleteMediaJob(deleteTarget.type, deleteTarget.id);
       removeJobFromWorkspace(deleteTarget.id);
       if (activeJob?.id === deleteTarget.id) {
         setActiveJob(null);
@@ -1471,7 +1446,7 @@ else if (selectedAction === 'transcribeMedia') {
     setIsRunPending(true);
     setError('');
     try {
-      await runAiCommandApi({
+      await AiService.runAiCommand({
         command: chatInput.trim(),
         agent: selectedAgent,
         context: { module: 'media', surface: 'consult_terminal', activeAssetId: activeOutput?.assetId || null }
@@ -1977,7 +1952,7 @@ else if (selectedAction === 'transcribeMedia') {
     if (isRunPending) return;
     setIsRunPending(true);
     try {
-      await runAiCommandApi({
+      await AiService.runAiCommand({
         command: "Assist with current mission parameters and optimize tactical form fields.",
         agent: "ALPHA",
         context: { module: 'media', surface: 'toolbar_assist', formState }
@@ -2811,7 +2786,7 @@ else if (selectedAction === 'transcribeMedia') {
                 <label className="text-[7px] font-black text-slate-500 uppercase tracking-widest block ml-0.5">DESTINATION ID</label>
                 <input value={formState.publishTarget} onChange={e => updateField('publishTarget', e.target.value)} className="w-full rounded bg-black border border-[#2A2D35] px-3 py-2 text-[11px] text-white focus:outline-none font-mono" placeholder="GOOGLE DRIVE" />
               </div>
-              <button onClick={async () => { const selectedAssetId = formState.assetId || (activeOutput?.recordKind === 'asset' ? activeOutput.assetId : ''); setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetIds: selectedAssetId ? [selectedAssetId] : [], publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-bold tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
+              <button onClick={async () => { const selectedAssetId = formState.assetId || (activeOutput?.recordKind === 'asset' ? activeOutput.assetId : ''); setLaunchingAction('publish'); try { await MediaService.createMediaPublishJob({ assetIds: selectedAssetId ? [selectedAssetId] : [], publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-bold tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
             </div>
           </div>
         </div>

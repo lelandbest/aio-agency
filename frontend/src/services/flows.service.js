@@ -1,7 +1,35 @@
-import { getFlowsApi } from './backendApi';
+import {
+  getFlowsApi,
+  getFlowApi,
+  getFlowProviderStatusesApi,
+  saveFlowApi,
+  triggerFlowManualApi,
+  saveFlowDraftApi,
+  getFlowDraftApi,
+  deleteFlowDraftApi,
+  deleteFlowApi,
+  bulkDeleteFlowsApi,
+  importWorkflowJsonApi,
+  createFlowFolderApi,
+  listFlowFoldersApi,
+  renameFlowFolderApi,
+  deleteFlowFolderApi,
+} from './backendApi';
 
 export const FlowsService = {
-  async fetchFlows() {
-    return await getFlowsApi();
-  },
+  fetchFlows: () => getFlowsApi(),
+  getFlow: (flowId) => getFlowApi(flowId),
+  getFlowProviderStatuses: (flowId) => getFlowProviderStatusesApi(flowId),
+  saveFlow: (flowId, payload) => saveFlowApi(flowId, payload),
+  triggerFlowManual: (flowId, payload) => triggerFlowManualApi(flowId, payload),
+  saveFlowDraft: (payload) => saveFlowDraftApi(payload),
+  getFlowDraft: (draftId) => getFlowDraftApi(draftId),
+  deleteFlowDraft: (draftId) => deleteFlowDraftApi(draftId),
+  deleteFlow: (flowId) => deleteFlowApi(flowId),
+  bulkDeleteFlows: (ids) => bulkDeleteFlowsApi(ids),
+  importWorkflowJson: (params) => importWorkflowJsonApi(params),
+  createFlowFolder: (name) => createFlowFolderApi(name),
+  listFlowFolders: () => listFlowFoldersApi(),
+  renameFlowFolder: (folderId, name) => renameFlowFolderApi(folderId, name),
+  deleteFlowFolder: (folderId) => deleteFlowFolderApi(folderId),
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Database, Search, Download, Table, ArrowLeft } from 'lucide-react';
-import { getCmsTablesApi } from '../../services/backendApi';
+import { CrmService } from '../../services/crm.service';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -18,7 +18,7 @@ const CMSView = ({ onBack }) => {
 
     const fetchCmsTables = async () => {
         try {
-            const data = await getCmsTablesApi();
+            const data = await CrmService.getCmsTables();
             setCmsTables(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error loading cms tables:', error);

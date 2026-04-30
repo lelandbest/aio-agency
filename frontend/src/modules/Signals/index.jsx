@@ -18,19 +18,11 @@ import { BullseyeIcon, BrainIcon, Crosshair, CommandSurfaceIcon } from '../../co
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
-import {
-  createEmailVerificationBulkTaskApi,
-  createMediaAudioRenderJobApi,
-  createMediaPublishJobApi,
-  createMediaRenderJobApi,
-  createMediaRunOfShowJobApi,
-  createMediaScriptJobApi,
-  createMediaTranscriptJobApi,
-  dismissSignalApi,
-  getSignalsApi,
-  getSystemHealthApi,
-  triggerFlowManualApi,
-} from '../../services/backendApi';
+import { SignalsService } from '../../services/signals.service';
+import { MediaService } from '../../services/media.service';
+import { AiService } from '../../services/ai.service';
+import { FlowsService } from '../../services/flows.service';
+import { SettingsService } from '../../services/settings.service';
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 const DISMISSED_SIGNAL_STORAGE_KEY = 'aio.signals.dismissed.v1';
@@ -252,7 +244,7 @@ function buildMetadataRows(signal) {
 async function retrySignal(payload) {
   const retryType = String(payload?.retryType || '').trim();
   if (retryType === 'verification_bulk') {
-    return createEmailVerificationBulkTaskApi({
+    return SettingsService.createEmailVerificationBulkTask({
       contactIds: Array.isArray(payload?.contactIds) ? payload.contactIds : [],
       emails: Array.isArray(payload?.emails) ? payload.emails : [],
       mode: payload?.mode || 'power',
@@ -266,17 +258,17 @@ async function retrySignal(payload) {
     }
     switch (String(payload?.jobType || '')) {
       case 'render':
-        return createMediaRenderJobApi(inputPayload);
+        return MediaService.createMediaRenderJob(inputPayload);
       case 'transcript':
-        return createMediaTranscriptJobApi(inputPayload);
+        return MediaService.createMediaTranscriptJob(inputPayload);
       case 'script':
-        return createMediaScriptJobApi(inputPayload);
+        return MediaService.createMediaScriptJob(inputPayload);
       case 'runOfShow':
-        return createMediaRunOfShowJobApi(inputPayload);
+        return MediaService.createMediaRunOfShowJob(inputPayload);
       case 'audioRender':
-        return createMediaAudioRenderJobApi(inputPayload);
+        return MediaService.createMediaAudioRenderJob(inputPayload);
       case 'publish':
-        return createMediaPublishJobApi(inputPayload);
+        return MediaService.createMediaPublishJob(inputPayload);
       default:
         throw new Error('Unsupported media retry type.');
     }
@@ -554,7 +546,7 @@ export default function SignalsModule() {
       try {
         if (!isRefresh) setLoading(true);
         if (isRefresh) setRefreshing(true);
-        const nextSignals = await getSignalsApi();
+        const nextSignals = await SignalsService.getSignals();
         if (cancelled) return;
         const dismissed = readDismissedSignals();
         const activeSignals = (Array.isArray(nextSignals) ? nextSignals : [])
@@ -578,7 +570,7 @@ export default function SignalsModule() {
 
     const loadHealth = async () => {
       try {
-        const next = await getSystemHealthApi();
+        const next = await AiService.getSystemHealth();
         setHealth(next || null);
       } catch {
         setHealth(null);
@@ -661,7 +653,7 @@ export default function SignalsModule() {
   const reloadSignals = async (isRefresh = true) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const nextSignals = await getSignalsApi();
+      const nextSignals = await SignalsService.getSignals();
       const dismissed = readDismissedSignals();
       const activeSignals = (Array.isArray(nextSignals) ? nextSignals : [])
         .filter(s => !dismissed.some(d => d.id === s.id));
@@ -712,7 +704,7 @@ export default function SignalsModule() {
     try {
       if (action.actionType === 'run_flow') {
         const payload = action.payload && typeof action.payload === 'object' ? action.payload : {};
-        await triggerFlowManualApi(payload.flowId, {
+        await FlowsService.triggerFlowManual(payload.flowId, {
           command: payload.command || `Signals retry for ${signal.title}`,
           context: payload.context || {},
         });
@@ -729,7 +721,7 @@ export default function SignalsModule() {
           persistent: false,
         });
       } else if (action.actionType === 'dismiss') {
-        await dismissSignalApi(signal.id);
+        await SignalsService.dismissSignal(signal.id);
         setDismissedSignals((prev) =>
           pruneDismissedSignals([{ ...signal, dismissedAt: new Date().toISOString() }, ...prev]).slice(0, 50)
         );

@@ -39,24 +39,10 @@ const COMMS_TOOLBAR_GHOST = 'rounded-[var(--radius-card)] border border-[var(--c
 const APPLIANCE_CHASSIS = 'rounded-[var(--radius-panel)] border border-white/5 bg-[#0a0a0c] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),inset_0_-1px_1px_rgba(0,0,0,0.6),0_12px_32px_rgba(0,0,0,0.6)] relative overflow-hidden';
 const APPLIANCE_CONTROL = 'bg-black/40 border border-white/5 rounded-[var(--radius-card)] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] hover:bg-black/60 transition-all';
 const APPLIANCE_INNER_SHADOW = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.8),0_1px_1px_rgba(255,255,255,0.02)]';
-import { 
-  getBrainOverviewApi, 
-  updateBrainProfileApi, 
-  createBrainIngestApi, 
-  createBrainLinkApi, 
-  createBrainSourceApi,
-  probeBrainMcpApi,
-  getAiProviderConfigsApi,
-  getOllamaModelsApi,
-  upsertAiProviderConfigApi,
-  getBrainItemsApi,
-  getVaultApi,
-  createBrainItemApi,
-  updateBrainItemApi,
-  deleteBrainItemApi,
-  getAnalyticsSummaryApi,
-  generateReportApi
-} from '../../services/backendApi';
+import { BrainService } from '../../services/brain.service';
+import { AiService } from '../../services/ai.service';
+import { MediaService } from '../../services/media.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import BrainGraphPanel from './BrainGraphPanel';
 import TabbedBrainFormModal from './TabbedBrainFormModal';
 import { INSIGHT_REPORTS } from './reports';
@@ -1078,7 +1064,7 @@ const Cortex = () => {
 
   const fetchProviders = async (profileData) => {
     try {
-      const data = await getAiProviderConfigsApi();
+      const data = await AiService.getAiProviderConfigs();
       // Normalize: convert single model to models array
       const normalized = data.map(p => ({
         ...p,
@@ -1106,7 +1092,7 @@ const Cortex = () => {
   const fetchOllamaModels = async () => {
     if (activeProviderId !== 'ollama') return;
     try {
-      const models = await getOllamaModelsApi();
+      const models = await AiService.getOllamaModels();
       setProviders(prev => prev.map(p => p.providerKey === 'ollama' ? { ...p, models } : p));
       setActiveModelId((current) => {
         if (current && models.includes(current)) {
@@ -1124,8 +1110,8 @@ const Cortex = () => {
   const fetchOverview = async () => {
     try {
       const [brainData, vaultData] = await Promise.all([
-        getBrainOverviewApi(),
-        getVaultApi()
+        BrainService.getBrainOverview(),
+        MediaService.getVault()
       ]);
       
       setProfile(brainData.profile || EMPTY_PROFILE);
@@ -1174,8 +1160,8 @@ const Cortex = () => {
               const p = providers.find(p => p.providerKey === id);
               if (p) {
                 try {
-                  await upsertAiProviderConfigApi(id, { ...p, providerKey: id, isDefault: true, enabled: true });
-                  await updateBrainProfileApi({ ...profile, activeProvider: id });
+                  await AiService.upsertAiProviderConfig(id, { ...p, providerKey: id, isDefault: true, enabled: true });
+                  await BrainService.updateBrainProfile({ ...profile, activeProvider: id });
                   fetchProviders();
                 } catch (err) { console.error(err); }
               }
@@ -1185,9 +1171,9 @@ const Cortex = () => {
               const p = providers.find(p => p.providerKey === activeProviderId);
               try {
                 if (p) {
-                  await upsertAiProviderConfigApi(activeProviderId, { ...p, providerKey: activeProviderId, model });
+                  await AiService.upsertAiProviderConfig(activeProviderId, { ...p, providerKey: activeProviderId, model });
                 }
-                await updateBrainProfileApi({ ...profile, activeModel: model });
+                await BrainService.updateBrainProfile({ ...profile, activeModel: model });
                 fetchProviders();
               } catch (err) { console.error(err); }
             }}
@@ -1196,7 +1182,7 @@ const Cortex = () => {
             onIngestFile={async (f, transcribe) => { 
                 try { 
                     const category = getCategoryByFile(f.name);
-                    await createBrainItemApi({ 
+                    await BrainService.createBrainItem({ 
                         title: f.name,
                         content: '', 
                         category: category,
@@ -1205,8 +1191,8 @@ const Cortex = () => {
                     fetchOverview(); 
                 } catch (err) { console.error(err); } 
             }} 
-            onSyncLink={async (url) => { try { await createBrainItemApi({ title: url.split('/').pop() || 'Web Link', content: '', category: 'document', status: 'ready' }); fetchOverview(); } catch (err) { console.error(err); } }} 
-            onProbeMcp={async (loc) => { try { const s = await createBrainSourceApi({ sourceType: 'mcp', label: loc.split('/').pop(), location: loc, status: 'active' }); if (s) { await probeBrainMcpApi(s.id); fetchOverview(); } } catch (err) { console.error(err); } }} 
+            onSyncLink={async (url) => { try { await BrainService.createBrainItem({ title: url.split('/').pop() || 'Web Link', content: '', category: 'document', status: 'ready' }); fetchOverview(); } catch (err) { console.error(err); } }} 
+            onProbeMcp={async (loc) => { try { const s = await BrainService.createBrainSource({ sourceType: 'mcp', label: loc.split('/').pop(), location: loc, status: 'active' }); if (s) { await BrainService.probeBrainMcp(s.id); fetchOverview(); } } catch (err) { console.error(err); } }} 
           />
           <SavedIntelligence 
             items={savedIntelligence} 
@@ -1243,14 +1229,14 @@ const Cortex = () => {
                 let reportContent = '';
                 
                 try {
-                    const analytics = await getAnalyticsSummaryApi();
+                    const analytics = await AnalyticsService.getAnalyticsSummary();
                     const hasContacts = analytics?.crm?.totalContacts > 0;
                     const hasThreads = analytics?.comms?.totalThreads > 0;
                     
                     if (!analytics || (!hasContacts && !hasThreads)) {
                         throw new Error('Report generation is disabled until live CRM or Comms data is available.');
                     } else {
-                        const result = await generateReportApi({
+                        const result = await AnalyticsService.generateReport({
                             reportId: r.id,
                             prompt: r.prompt,
                             analytics,
@@ -1304,7 +1290,7 @@ const Cortex = () => {
                 }; 
                 
                 try {
-                    const saved = await createBrainItemApi(newItem);
+                    const saved = await BrainService.createBrainItem(newItem);
                     if (saved) await fetchOverview();
                 } catch (saveErr) {
                     console.error('[CortexReport] Save failed:', saveErr);
@@ -1342,7 +1328,7 @@ const Cortex = () => {
                   reportMeta: JSON.stringify(reportMeta),
                   brandConfig: JSON.stringify(resolvedBrand)
                 }; 
-                const saved = await createBrainItemApi(newItem);
+                const saved = await BrainService.createBrainItem(newItem);
                 if (saved) await fetchOverview();
             }} 
           />
@@ -1386,13 +1372,13 @@ const Cortex = () => {
           onClose={() => setSelectedCategory(null)}
           onDelete={async (id) => { 
             try { 
-              await deleteBrainItemApi(id); 
+              await BrainService.deleteBrainItem(id); 
               fetchOverview(); 
             } catch (err) { console.error(err); } 
           }}
           onUpdate={async (id, updates) => { 
             try { 
-              await updateBrainItemApi(id, updates); 
+              await BrainService.updateBrainItem(id, updates); 
               fetchOverview(); 
             } catch (err) { console.error(err); } 
           }}

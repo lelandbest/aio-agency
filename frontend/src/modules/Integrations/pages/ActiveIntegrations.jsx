@@ -13,62 +13,12 @@ import { getBrandIcon } from '../utils/brandIcons.jsx';
 import ModuleHeader from '../../../components/ModuleHeader';
 import { useNotice } from '../../../contexts/NoticeContext';
 import { useAIAssist } from '../../../contexts/AIAssistContext';
-import {
-  deleteAutomationProviderConfigApi,
-  deleteAiProviderConfigApi,
-  deleteEmailVerifierConfigApi,
-  getAutomationProviderConfigsApi,
-  getAiProviderCatalogApi,
-  getAiProviderConfigsApi,
-  getOllamaModelsApi,
-  createCalendarSourceApi,
-  createMailboxApi,
-  createThreadApi,
-  deleteMailboxApi,
-  deleteCalendarSourceApi,
-  disconnectCalendarSourceApi,
-  disconnectMailboxApi,
-  getCalendarProvidersApi,
-  getCalendarSourceAuthorizeUrl,
-  getCalendarSourcesApi,
-  getMailboxAuthorizeUrl,
-  getMailboxProvidersApi,
-  getMailboxesApi,
-  ingestMailboxMessageApi,
-  getEmailVerifierConfigApi,
-  importCalendarSourceApi,
-  listCalendarSourceCalendarsApi,
-  syncCalendarSourceApi,
-  syncMailboxApi,
-  testAutomationProviderConfigApi,
-  testCalendarSourceApi,
-  testAiProviderConfigApi,
-  testEmailVerifierConfigApi,
-  testMailboxConnectionApi,
-  updateCalendarSourceApi,
-  updateEmailVerifierConfigApi,
-  updateMailboxApi,
-  sendThreadMessageApi,
-  upsertAutomationProviderConfigApi,
-  upsertAiProviderConfigApi,
-  getMediaProviderConfigsApi,
-  upsertMediaProviderConfigApi,
-  deleteMediaProviderConfigApi,
-  testMediaProviderConfigApi,
-  getDataStoreProviderConfigsApi,
-  upsertDataStoreProviderConfigApi,
-  deleteDataStoreProviderConfigApi,
-  testDataStoreProviderConfigApi,
-  getPaymentProviderConfigsApi,
-  upsertPaymentProviderConfigApi,
-  getSocialProviderConfigsApi,
-  upsertSocialProviderConfigApi,
-  deletePaymentProviderConfigApi,
-  getCommsProviderConfigsApi,
-  saveCommsProviderConfigApi,
-  deleteCommsProviderConfigApi,
-  verifyCommsProviderConfigApi
-} from '../../../services/backendApi';
+import { AiService } from '../../../services/ai.service';
+import { CalendarService } from '../../../services/calendar.service';
+import { CommsService } from '../../../services/comms.service';
+import { SettingsService } from '../../../services/settings.service';
+import { MediaService } from '../../../services/media.service';
+import { IntegrationsService } from '../../../services/integrations.service';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 import SystemConfirmModal from '../../../components/Modals/SystemConfirmModal';
 
@@ -920,47 +870,47 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     let nextNotice = null;
 
     try {
-      setAutomationProviderConfigs(await getAutomationProviderConfigsApi());
+      setAutomationProviderConfigs(await IntegrationsService.getAutomationProviderConfigs());
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      const data = await getMailboxesApi();
+      const data = await CommsService.getMailboxes();
       setMailboxes((data || []).map(camelizeData).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      const providers = await getMailboxProvidersApi();
+      const providers = await CommsService.getMailboxProviders();
       setMailboxProviders(providers?.length ? providers : DEFAULT_MAILBOX_PROVIDERS);
     } catch {
       // Keep existing data or defaults
     }
 
     try {
-      setEmailVerifierConfig(camelizeData(await getEmailVerifierConfigApi()));
+      setEmailVerifierConfig(camelizeData(await SettingsService.getEmailVerifierConfig()));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      const data = await getCalendarSourcesApi();
+      const data = await CalendarService.getCalendarSources();
       setCalendarSources((data || []).map(camelizeData).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      const providers = await getCalendarProvidersApi();
+      const providers = await CalendarService.getCalendarProviders();
       setCalendarProviders(providers?.length ? providers : DEFAULT_CALENDAR_PROVIDERS);
     } catch {
       // Keep existing or defaults
     }
 
     try {
-      const catalog = await getAiProviderCatalogApi();
+      const catalog = await AiService.getAiProviderCatalog();
       const localCatalog = getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS);
       setAiProviderCatalog(catalog?.length ? catalog : localCatalog);
     } catch {
@@ -968,37 +918,37 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     }
 
     try {
-      setAiProviderConfigs((await getAiProviderConfigsApi()).map((provider) => normalizeAiProviderConfigRecord(camelizeData(provider))));
+      setAiProviderConfigs((await AiService.getAiProviderConfigs()).map((provider) => normalizeAiProviderConfigRecord(camelizeData(provider))));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      setDataStoreProviderConfigs((await getDataStoreProviderConfigsApi()).map(camelizeData));
+      setDataStoreProviderConfigs((await SettingsService.getDataStoreProviderConfigs()).map(camelizeData));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      setMediaProviderConfigs((await getMediaProviderConfigsApi()).map(camelizeData));
+      setMediaProviderConfigs((await MediaService.getMediaProviderConfigs()).map(camelizeData));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      setPaymentProviderConfigs((await getPaymentProviderConfigsApi()).map(camelizeData));
+      setPaymentProviderConfigs((await IntegrationsService.getPaymentProviderConfigs()).map(camelizeData));
     } catch (error) {
       nextNotice = nextNotice || { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      setSocialProviderConfigs((await getSocialProviderConfigsApi()).map(camelizeData));
+      setSocialProviderConfigs((await IntegrationsService.getSocialProviderConfigs()).map(camelizeData));
     } catch (error) {
       nextNotice = nextNotice || { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
-      const rawCommsConfigs = (await getCommsProviderConfigsApi()).map(camelizeData);
+      const rawCommsConfigs = (await CommsService.getCommsProviderConfigs()).map(camelizeData);
       // Normalize: backend returns providerType; UI matching expects providerKey
       const normalizedCommsConfigs = rawCommsConfigs.map(c => ({
         ...c,
@@ -1104,7 +1054,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     const silent = options.silent !== false;
     setCalendarOptionsLoading(true);
     try {
-      const calendars = await listCalendarSourceCalendarsApi(sourceId);
+      const calendars = await CalendarService.listCalendarSourceCalendars(sourceId);
       setCalendarOptions(calendars || []);
       return calendars || [];
     } catch (error) {
@@ -1440,7 +1390,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     }
     let cancelled = false;
     setCalendarOptionsLoading(true);
-    listCalendarSourceCalendarsApi(selectedCalendarSource.id)
+    CalendarService.listCalendarSourceCalendars(selectedCalendarSource.id)
       .then((items) => {
         if (cancelled) return;
         setCalendarOptions(items || []);
@@ -1518,7 +1468,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const refreshOllamaModels = async (preferredBaseUrl) => {
     setOllamaModelsLoading(true);
     try {
-      const models = await getOllamaModelsApi({
+      const models = await AiService.getOllamaModels({
         baseUrl: preferredBaseUrl || aiProviderForm.baseUrl || (aiProviderCatalog.find((provider) => provider.id === 'ollama') || {}).defaultBaseUrl,
         apiKey: aiProviderForm.apiKey || '',
         username: aiProviderForm.config?.username || '',
@@ -1546,7 +1496,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     const loadModels = async () => {
       setOllamaModelsLoading(true);
       try {
-        const models = await getOllamaModelsApi({
+        const models = await AiService.getOllamaModels({
           baseUrl: aiProviderForm.baseUrl || (aiProviderCatalog.find((provider) => provider.id === 'ollama') || {}).defaultBaseUrl,
           apiKey: aiProviderForm.apiKey || '',
           username: aiProviderForm.config?.username || '',
@@ -1727,7 +1677,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       return;
     }
     try {
-      await updateMailboxApi(selectedMailbox.id, mailboxForm);
+      await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
       showNotice({ tone: 'success', message: 'Mailbox saved.' });
       await loadAll();
     } catch (error) {
@@ -1738,7 +1688,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleCreateMailbox = async () => {
     if (!mailboxDraft.name.trim() || !mailboxDraft.address.trim()) return;
     try {
-      const mailbox = await createMailboxApi({
+      const mailbox = await CommsService.createMailbox({
         ...mailboxDraft,
         name: mailboxDraft.name.trim(),
         address: mailboxDraft.address.trim(),
@@ -1758,7 +1708,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       const currentApiKey = emailVerifierForm.apiKey || emailVerifierConfig?.apiKey || '';
       const hasNewApiKey = emailVerifierForm.apiKey && emailVerifierForm.apiKey.length > 0;
       const shouldAutoEnable = hasNewApiKey && !emailVerifierForm.enabled;
-      const saved = await updateEmailVerifierConfigApi({
+      const saved = await SettingsService.updateEmailVerifierConfig({
         apiKey: currentApiKey,
         enabled: shouldAutoEnable ? true : (emailVerifierForm.enabled || false),
         autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
@@ -1785,7 +1735,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       if (currentApiKey) {
         const hasNewApiKey = emailVerifierForm.apiKey && emailVerifierForm.apiKey.length > 0;
         const shouldAutoEnable = hasNewApiKey && !emailVerifierForm.enabled;
-        const saved = await updateEmailVerifierConfigApi({
+        const saved = await SettingsService.updateEmailVerifierConfig({
           apiKey: currentApiKey,
           enabled: shouldAutoEnable ? true : (emailVerifierForm.enabled || false),
           autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
@@ -1794,7 +1744,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         setEmailVerifierConfig(saved);
         setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
       }
-      const response = await testEmailVerifierConfigApi();
+      const response = await SettingsService.testEmailVerifierConfig();
       const config = response?.data || null;
       if (config) {
         setEmailVerifierConfig(config);
@@ -1819,7 +1769,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          const cleared = await deleteEmailVerifierConfigApi();
+          const cleared = await SettingsService.deleteEmailVerifierConfig();
           setEmailVerifierConfig(cleared);
           setEmailVerifierForm(createEmailVerifierDraft(cleared || {}));
           setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
@@ -1835,8 +1785,8 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleAuthorizeMailbox = async () => {
     if (!selectedMailbox?.id || !isMailboxOauthProvider(mailboxForm.provider)) return;
     try {
-      await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      const authorizeUrl = await getMailboxAuthorizeUrl(selectedMailbox.id);
+      await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
+      const authorizeUrl = await CommsService.getMailboxAuthorizeUrl(selectedMailbox.id);
       if (!authorizeUrl) {
         throw new Error('Failed to get authorization URL');
       }
@@ -1856,8 +1806,8 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     }
     setBusyAction('mailbox-test');
     try {
-      await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      const response = await testMailboxConnectionApi(selectedMailbox.id);
+      await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
+      const response = await CommsService.testMailboxConnection(selectedMailbox.id);
       showNotice({ tone: response?.result?.status === 'ok' ? 'success' : 'warning', message: response?.result?.message || 'Mailbox test completed.' });
       triggerSavedAction('mailbox-test');
       loadAll();
@@ -1875,7 +1825,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       return;
     }
     try {
-      const response = await syncMailboxApi(selectedMailbox.id);
+      const response = await CommsService.syncMailbox(selectedMailbox.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'Mailbox synced.' });
       loadAll();
     } catch (error) {
@@ -1887,7 +1837,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     if (!selectedMailbox?.id) return;
     setBusyAction('mailbox-ingest-test');
     try {
-      await ingestMailboxMessageApi(selectedMailbox.id, {
+      await CommsService.ingestMailboxMessage(selectedMailbox.id, {
         subject: `${selectedMailbox.name || 'Mailbox'} ingest test`,
         body: 'Inbound mailbox test generated from Integrations so provider routing and mailbox ingestion can be validated without using the Comms toolbar.',
         senderName: 'Inbound Test Contact',
@@ -1908,7 +1858,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     if (!selectedMailbox?.id) return;
     setBusyAction('mailbox-thread-test');
     try {
-      const thread = await createThreadApi({
+      const thread = await CommsService.createThread({
         subject: `${selectedMailbox.name || 'Mailbox'} thread test`,
         channelType: 'email',
         body: 'Thread test initiated from Integrations mailbox controls.',
@@ -1917,7 +1867,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       if (!thread?.id) {
         throw new Error('Failed to create thread test.');
       }
-      await sendThreadMessageApi(thread.id, {
+      await CommsService.sendThreadMessage(thread.id, {
         body: 'Inbound thread test generated from Integrations so thread hydration and inbound handling can be validated without using the Comms toolbar.',
         channelType: 'email',
         senderName: 'Inbound Test Contact',
@@ -1950,7 +1900,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          const response = camelizeData(await deleteMailboxApi(selectedMailbox.id, fallbackMailbox?.id));
+          const response = camelizeData(await CommsService.deleteMailbox(selectedMailbox.id, fallbackMailbox?.id));
           showNotice({
             tone: 'success',
             message: `${response?.deletedMailboxName || selectedMailbox.name} deleted.${response?.reassignedThreads ? ` ${response.reassignedThreads} thread(s) moved to ${response?.fallbackMailboxName || fallbackMailbox?.name}.` : ''}`
@@ -1977,7 +1927,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          const response = await disconnectMailboxApi(selectedMailbox.id);
+          const response = await CommsService.disconnectMailbox(selectedMailbox.id);
           showNotice({ tone: 'success', message: `${response?.mailbox?.name || selectedMailbox.name} disconnected.` });
           await loadAll();
           setSelectedMailboxId(selectedMailbox.id);
@@ -1995,7 +1945,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       return;
     }
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, calendarSourceForm);
       showNotice({
         tone: 'success',
         message: 'Calendar source saved.',
@@ -2010,7 +1960,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleCreateCalendarSource = async () => {
     if (!calendarSourceDraft.name.trim()) return;
     try {
-      const source = await createCalendarSourceApi(calendarSourceDraft);
+      const source = await CalendarService.createCalendarSource(calendarSourceDraft);
       showNotice({ tone: 'success', message: 'Calendar source created.' });
       setShowCalendarComposer(false);
       setCalendarSourceDraft(createCalendarSourceDraft());
@@ -2024,8 +1974,8 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleAuthorizeCalendarSource = async () => {
     if (!selectedCalendarSource?.id || !isCalendarOauthProvider(calendarSourceForm.provider)) return;
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
-      const authorizeUrl = await getCalendarSourceAuthorizeUrl(selectedCalendarSource.id);
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, calendarSourceForm);
+      const authorizeUrl = await CalendarService.getCalendarSourceAuthorizeUrl(selectedCalendarSource.id);
       if (!authorizeUrl) throw new Error('Failed to get authorization URL');
       const result = await openOAuthPopup(authorizeUrl, 'calendar');
       showNotice({ tone: 'success', message: `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarProvider.label}.` });
@@ -2043,8 +1993,8 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     }
     setBusyAction('calendar-test');
     try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
-      const response = await testCalendarSourceApi(selectedCalendarSource.id);
+      await CalendarService.updateCalendarSource(selectedCalendarSource.id, calendarSourceForm);
+      const response = await CalendarService.testCalendarSource(selectedCalendarSource.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
       triggerSavedAction('calendar-test');
       await loadAll();
@@ -2063,7 +2013,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       return;
     }
     try {
-      const response = await syncCalendarSourceApi(selectedCalendarSource.id);
+      const response = await CalendarService.syncCalendarSource(selectedCalendarSource.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'Calendar source synced.' });
       loadAll();
     } catch (error) {
@@ -2078,7 +2028,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       return;
     }
     try {
-      const response = camelizeData(await importCalendarSourceApi(selectedCalendarSource.id));
+      const response = camelizeData(await CalendarService.importCalendarSource(selectedCalendarSource.id));
       const conflicts = response?.result?.conflictedCount || 0;
       showNotice({
         tone: conflicts ? 'warning' : 'success',
@@ -2103,7 +2053,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          const response = camelizeData(await deleteCalendarSourceApi(selectedCalendarSource.id, fallbackSource?.id));
+          const response = camelizeData(await CalendarService.deleteCalendarSource(selectedCalendarSource.id, fallbackSource?.id));
           showNotice({
             tone: 'success',
             message: `${response?.deletedSourceName || selectedCalendarSource.name} deleted.${response?.reassignedEvents ? ` ${response.reassignedEvents} event(s) moved to ${response?.fallbackSourceName || fallbackSource?.name}.` : response?.clearedEvents ? ` ${response.clearedEvents} event(s) were detached from that source.` : ''}`
@@ -2130,7 +2080,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          const response = await disconnectCalendarSourceApi(selectedCalendarSource.id);
+          const response = await CalendarService.disconnectCalendarSource(selectedCalendarSource.id);
           showNotice({ tone: 'success', message: `${response?.source?.name || selectedCalendarSource.name} disconnected.` });
           await loadAll();
           setCalendarOptions([]);
@@ -2147,7 +2097,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
       const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
       const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
-      await upsertAiProviderConfigApi(providerKey, {
+      await AiService.upsertAiProviderConfig(providerKey, {
         label: providerLabel,
         baseUrl: (aiProviderForm.baseUrl || '').trim(),
         model: (aiProviderForm.model || '').trim(),
@@ -2181,7 +2131,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
       const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
       const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
-      const saved = await upsertAiProviderConfigApi(providerKey, {
+      const saved = await AiService.upsertAiProviderConfig(providerKey, {
         label: providerLabel,
         baseUrl: (aiProviderForm.baseUrl || '').trim(),
         model: (aiProviderForm.model || '').trim(),
@@ -2199,7 +2149,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
           appName: aiProviderForm.appName || 'AIO CRM',
         },
       });
-      const response = await testAiProviderConfigApi(saved.id);
+      const response = await AiService.testAiProviderConfig(saved.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
       triggerSavedAction('ai-provider-test');
       await loadAll();
@@ -2219,7 +2169,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
+          await AiService.deleteAiProviderConfig(selectedAiProviderConfig.id);
           showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
           await loadAll();
         } catch (error) {
@@ -2232,7 +2182,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleSaveAutomationProvider = async () => {
     if (!selectedAutomationProviderCatalog?.id) return;
     try {
-      await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
+      await IntegrationsService.upsertAutomationProviderConfig(selectedAutomationProviderCatalog.id, {
         label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
         baseUrl: (automationProviderForm.baseUrl || '').trim(),
         apiKey: automationProviderForm.apiKey || undefined,
@@ -2255,7 +2205,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     if (!selectedAutomationProviderCatalog?.id) return;
     setBusyAction('automation-test');
     try {
-      const saved = await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
+      const saved = await IntegrationsService.upsertAutomationProviderConfig(selectedAutomationProviderCatalog.id, {
         label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
         baseUrl: (automationProviderForm.baseUrl || '').trim(),
         apiKey: automationProviderForm.apiKey || undefined,
@@ -2263,7 +2213,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         status: selectedAutomationProviderConfig?.status || 'configured',
         config: automationProviderForm.config || {},
       });
-      const response = await testAutomationProviderConfigApi(saved.id);
+      const response = await IntegrationsService.testAutomationProviderConfig(saved.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'Automation provider test completed.' });
       triggerSavedAction('automation-test');
       await loadAll();
@@ -2283,7 +2233,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteAutomationProviderConfigApi(selectedAutomationProviderConfig.id);
+          await IntegrationsService.deleteAutomationProviderConfig(selectedAutomationProviderConfig.id);
           showNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
           await loadAll();
         } catch (error) {
@@ -2304,7 +2254,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         enabled: !!paymentProviderForm.enabled,
         config: paymentProviderForm.config || {},
       };
-      await upsertPaymentProviderConfigApi(selectedPaymentProviderCatalog.id, payload);
+      await IntegrationsService.upsertPaymentProviderConfig(selectedPaymentProviderCatalog.id, payload);
       showNotice({
         tone: 'success',
         message: `${selectedPaymentProviderCatalog.name} payment settings saved.`,
@@ -2325,7 +2275,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
+          await IntegrationsService.deletePaymentProviderConfig(selectedPaymentProviderConfig.id);
           showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
           await loadAll();
         } catch (error) {
@@ -2348,7 +2298,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         enabled: !!socialProviderForm.enabled,
         config,
       };
-      await upsertSocialProviderConfigApi(selectedSocialProviderCatalog.id, payload);
+      await IntegrationsService.upsertSocialProviderConfig(selectedSocialProviderCatalog.id, payload);
       showNotice({ tone: 'success', message: `${selectedSocialProviderCatalog.name} social settings saved.` });
       triggerSavedAction('social-save');
       await loadAll();
@@ -2366,7 +2316,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         if (commsProviderForm[name] !== undefined) config[name] = commsProviderForm[name];
       });
       // Use real backend contract: POST /api/comms/provider-configs
-      const result = await saveCommsProviderConfigApi(
+      const result = await CommsService.saveCommsProviderConfig(
         selectedCommsProviderCatalog.id, // providerType
         config,
         true // isActive
@@ -2388,7 +2338,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleTestCommsProvider = async () => {
     if (!selectedCommsProviderCatalog?.id) return;
     try {
-      const result = await verifyCommsProviderConfigApi(
+      const result = await CommsService.verifyCommsProviderConfig(
         selectedCommsProviderCatalog.id,
         commsProviderForm
       );
@@ -2408,7 +2358,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteCommsProviderConfigApi(selectedCommsProviderKey);
+          await CommsService.deleteCommsProviderConfig(selectedCommsProviderKey);
           setCommsProviderForm(createCommsProviderDraft(selectedCommsProviderCatalog));
           showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog?.name || 'Provider'} removed.` });
           await loadAll();
@@ -2422,7 +2372,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleSaveDataStoreProvider = async () => {
     if (!selectedDataStoreProviderCatalog?.id) return;
     try {
-      await upsertDataStoreProviderConfigApi(selectedDataStoreProviderCatalog.id, {
+      await SettingsService.upsertDataStoreProviderConfig(selectedDataStoreProviderCatalog.id, {
         label: (dataStoreProviderForm.label || selectedDataStoreProviderCatalog.name).trim(),
         baseUrl: (dataStoreProviderForm.baseUrl || '').trim(),
         apiKey: dataStoreProviderForm.apiKey || undefined,
@@ -2444,14 +2394,14 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     if (!selectedDataStoreProviderCatalog?.id) return;
     setBusyAction('data-store-test');
     try {
-      await upsertDataStoreProviderConfigApi(selectedDataStoreProviderCatalog.id, {
+      await SettingsService.upsertDataStoreProviderConfig(selectedDataStoreProviderCatalog.id, {
         label: (dataStoreProviderForm.label || selectedDataStoreProviderCatalog.name).trim(),
         baseUrl: (dataStoreProviderForm.baseUrl || '').trim(),
         apiKey: dataStoreProviderForm.apiKey || undefined,
         enabled: !!dataStoreProviderForm.enabled,
         config: dataStoreProviderForm.config || {},
       });
-      const response = await testDataStoreProviderConfigApi(selectedDataStoreProviderCatalog.id);
+      const response = await SettingsService.testDataStoreProviderConfig(selectedDataStoreProviderCatalog.id);
       showNotice({
         tone: response?.lastError ? 'warning' : 'success',
         message: response?.lastError || `${selectedDataStoreProviderCatalog.name} connection verified.`,
@@ -2474,7 +2424,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteDataStoreProviderConfigApi(selectedDataStoreProviderConfig.providerKey);
+          await SettingsService.deleteDataStoreProviderConfig(selectedDataStoreProviderConfig.providerKey);
           setDataStoreProviderForm(createDataStoreProviderDraft(selectedDataStoreProviderCatalog));
           showNotice({
             tone: 'success',
@@ -2491,7 +2441,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
   const handleSaveMediaProvider = async () => {
     if (!selectedMediaProviderCatalog?.id) return;
     try {
-      await upsertMediaProviderConfigApi(selectedMediaProviderCatalog.id, {
+      await MediaService.upsertMediaProviderConfig(selectedMediaProviderCatalog.id, {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
@@ -2513,14 +2463,14 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     if (!selectedMediaProviderCatalog?.id) return;
     setBusyAction('media-test');
     try {
-      const saved = await upsertMediaProviderConfigApi(selectedMediaProviderCatalog.id, {
+      const saved = await MediaService.upsertMediaProviderConfig(selectedMediaProviderCatalog.id, {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
         enabled: !!mediaProviderForm.enabled,
         config: mediaProviderForm.config || {},
       });
-      await testMediaProviderConfigApi(saved?.id || selectedMediaProviderConfig?.id);
+      await MediaService.testMediaProviderConfig(saved?.id || selectedMediaProviderConfig?.id);
       showNotice({
         tone: 'success',
         message: `${selectedMediaProviderCatalog.name} connection verified.`,
@@ -2543,7 +2493,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
+          await MediaService.deleteMediaProviderConfig(selectedMediaProviderConfig.id);
           setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
           showNotice({
             tone: 'success',
@@ -3611,27 +3561,18 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
                                 type="button"
                                 onClick={async () => {
                                   const voiceId = value || field.default || '21m00Tcm4TlvDq8ikWAM';
-                                  try {
-                                    const res = await fetch('/api/media/voice-preview', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ voiceId }),
-                                    });
-                                    if (!res.ok) {
-                                      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
-                                      throw new Error(err.detail || 'Failed to generate preview');
-                                    }
-                                    const blob = await res.blob();
-                                    const url = URL.createObjectURL(blob);
-                                    const audio = new Audio(url);
-                                    audio.onended = () => URL.revokeObjectURL(url);
-                                    audio.onerror = () => {
-                                      showNotice({ tone: 'error', message: 'Could not play voice preview.' });
-                                      URL.revokeObjectURL(url);
-                                    };
-                                    await audio.play();
-                                  } catch (e) {
-                                    showNotice({ tone: 'error', message: e.message || 'Voice preview failed.' });
+try {
+                                      const blob = await MediaService.voicePreviewBlob({ voiceId });
+                                      const url = URL.createObjectURL(blob);
+                                      const audio = new Audio(url);
+                                      audio.onended = () => URL.revokeObjectURL(url);
+                                      audio.onerror = () => {
+                                        showNotice({ tone: 'error', message: 'Could not play voice preview.' });
+                                        URL.revokeObjectURL(url);
+                                      };
+                                      await audio.play();
+                                    } catch (e) {
+                                      showNotice({ tone: 'error', message: e.message || 'Voice preview failed.' });
                                   }
                                 }}
                                 className="shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/40 transition"

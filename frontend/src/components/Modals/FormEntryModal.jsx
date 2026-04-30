@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Save } from 'lucide-react';
 import { processFormSubmission } from '../../services/formProcessor';
-import { normalizeSourceUrl } from '../../services/backendApi';
+import { normalizeSourceUrl } from '../../services/forms.service';
 
 const normalizeFormEntrySettings = (settings = {}) => {
     const source = settings || {};

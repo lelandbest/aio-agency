@@ -8,47 +8,14 @@ import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/ic
 import { clearStoredSessionToken } from '../../services/authStorage';
 import ModuleHeader from '../../components/ModuleHeader';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
-import {
-  addWorkspaceMemberApi,
-  attachWorkspaceRoleApi,
-  changePasswordApi,
-  createWorkspaceApi,
-  createWorkspaceRoleApi,
-  deleteAvatarApi,
-  deleteGlobalVariableApi,
-  deleteUserAccountApi,
-  deleteWorkspaceApi,
-  detachWorkspaceRoleApi,
-  executeOmegaApi,
-  exportUserDataApi,
-  getAiAgentsApi,
-  getAuthSessionsApi,
-  getCanonicalSettingsApi,
-  getExportDownloadUrl,
-  getExportStatusApi,
-  getOmegaStatusApi,
-  getProfileApi,
-  getWorkspaceMembershipsApi,
-  getWorkspaceRolesApi,
-  logoutOtherSessionsApi,
-  removeWorkspaceMemberApi,
-  revokeAuthSessionApi,
-  updateAiAgentApi,
-  updateCanonicalTenantSettingsApi,
-  updateProfileApi,
-  updateSystemEmailTemplateApi,
-  updateWorkspaceApi,
-  updateWorkspaceMemberApi,
-  updateWorkspaceRoleApi,
-  uploadAvatarApi,
-  upsertGlobalVariableApi,
-  armOmegaApi,
-  cancelOmegaApi
-} from '../../services/backendApi';
+import { AuthService } from '../../services/auth.service';
+import { AiService } from '../../services/ai.service';
+import { SettingsService } from '../../services/settings.service';
+import { AnalyticsService } from '../../services/analytics.service';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
 
 const loadCanonicalTenantSettings = async () => {
-  const bundle = await getCanonicalSettingsApi();
+  const bundle = await SettingsService.getCanonicalSettings();
   return bundle?.tenantSettings || {};
 };
 
@@ -149,7 +116,7 @@ const useWorkspaceRoleAuthority = (workspaceId, enabled = true) => {
     setLoadingRoles(true);
     setRolesError('');
     try {
-      const nextBundle = await getWorkspaceRolesApi(workspaceId);
+      const nextBundle = await SettingsService.getWorkspaceRoles(workspaceId);
       setRoleBundle(nextBundle);
       return nextBundle;
     } catch (loadError) {
@@ -227,7 +194,7 @@ const RoleAssignmentEditor = ({
     setSubmitting(true);
     setError('');
     try {
-      const nextBundle = await attachWorkspaceRoleApi(workspaceId, selectedRoleId, { entityType, entityId });
+      const nextBundle = await SettingsService.attachWorkspaceRole(workspaceId, selectedRoleId, { entityType, entityId });
       onRoleBundleUpdate?.(nextBundle);
     } catch (attachError) {
       setError(attachError.message || 'Unable to attach role.');
@@ -241,7 +208,7 @@ const RoleAssignmentEditor = ({
     setSubmitting(true);
     setError('');
     try {
-      const nextBundle = await detachWorkspaceRoleApi(workspaceId, role.id, entityType, entityId);
+      const nextBundle = await SettingsService.detachWorkspaceRole(workspaceId, role.id, entityType, entityId);
       onRoleBundleUpdate?.(nextBundle);
     } catch (detachError) {
       setError(detachError.message || 'Unable to detach role.');
@@ -329,7 +296,7 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
     setSavingRole(true);
     setRolesError('');
     try {
-      const nextBundle = await createWorkspaceRoleApi(workspaceId, {
+      const nextBundle = await SettingsService.createWorkspaceRole(workspaceId, {
         name: newRoleName.trim(),
         description: newRoleDescription.trim(),
         capabilities: [],
@@ -352,7 +319,7 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
     setSavingRole(true);
     setRolesError('');
     try {
-      const nextBundle = await updateWorkspaceRoleApi(workspaceId, selectedRole.id, {
+      const nextBundle = await SettingsService.updateWorkspaceRole(workspaceId, selectedRole.id, {
         name: draftName.trim(),
         description: draftDescription.trim(),
         capabilities: draftCapabilities,
@@ -380,7 +347,7 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
     setSavingRole(true);
     setRolesError('');
     try {
-      const nextBundle = await attachWorkspaceRoleApi(workspaceId, selectedRole.id, {
+      const nextBundle = await SettingsService.attachWorkspaceRole(workspaceId, selectedRole.id, {
         entityType: assignmentEntityType,
         entityId: assignmentEntityId,
       });
@@ -601,7 +568,7 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
                               setSavingRole(true);
                               setRolesError('');
                               try {
-                                const nextBundle = await detachWorkspaceRoleApi(workspaceId, selectedRole.id, assignment.entityType, assignment.entityId);
+                                const nextBundle = await SettingsService.detachWorkspaceRole(workspaceId, selectedRole.id, assignment.entityType, assignment.entityId);
                                 setRoleBundle(nextBundle);
                               } catch (detachError) {
                                 setRolesError(detachError.message || 'Unable to detach role.');
@@ -676,7 +643,7 @@ const GlobalVarsManager = () => {
     }
 
     try {
-      await upsertGlobalVariableApi({
+      await SettingsService.upsertGlobalVariable({
         key: finalKey,
         value: newValue,
         description: newDesc,
@@ -700,7 +667,7 @@ const GlobalVarsManager = () => {
     setError('');
     setStatus('');
     try {
-      await deleteGlobalVariableApi(id);
+      await SettingsService.deleteGlobalVariable(id);
       setVars(current => current.filter(item => item.id !== id));
       setStatus('Variable removed.');
     } catch (deleteError) {
@@ -844,7 +811,7 @@ const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef })
       return;
     }
     const nextMenuToPersist = menuDraftDirty ? nextMenu : persistedMenuStructure;
-    const updatedTenantSettings = await updateCanonicalTenantSettingsApi({
+    const updatedTenantSettings = await SettingsService.updateCanonicalTenantSettings({
       branding: nextBranding,
       navigation: {
         ...(tenantSettings?.navigation || {}),
@@ -2046,7 +2013,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
     setError('');
     setStatus('');
     try {
-      const updated = await updateSystemEmailTemplateApi(editing.id, draft);
+      const updated = await SettingsService.updateSystemEmailTemplate(editing.id, draft);
       await loadTemplates(search);
       setEditing(null);
       setStatus(`${updated.emailType} saved.`);
@@ -2179,7 +2146,7 @@ const ProfileSettings = () => {
       setLoading(true);
       setError('');
       try {
-        const profile = await getProfileApi();
+        const profile = await AuthService.getProfile();
         setForm({
           displayName: profile?.name || '',
           email: profile?.email || '',
@@ -2203,7 +2170,7 @@ const ProfileSettings = () => {
     const loadSessions = async () => {
       setLoadingSessions(true);
       try {
-        const data = await getAuthSessionsApi();
+        const data = await AuthService.getAuthSessions();
         setSessions(data || []);
       } catch { }
       setLoadingSessions(false);
@@ -2225,7 +2192,7 @@ const ProfileSettings = () => {
     setAvatarUploading(true);
     setError('');
     try {
-      const result = await uploadAvatarApi(file);
+      const result = await AuthService.uploadAvatar(file);
       setAvatarUrl(result.data?.avatarUrl || '');
       await refreshSession?.();
       setStatus('Avatar updated.');
@@ -2241,7 +2208,7 @@ const ProfileSettings = () => {
     setAvatarUploading(true);
     setError('');
     try {
-      await deleteAvatarApi();
+      await AuthService.deleteAvatar();
       setAvatarUrl('');
       await refreshSession?.();
       setStatus('Avatar removed.');
@@ -2257,7 +2224,7 @@ const ProfileSettings = () => {
     setError('');
     setStatus('');
     try {
-      await updateProfileApi({
+      await AuthService.updateProfile({
         displayName: form.displayName,
         phone: form.phone,
         locale: form.locale,
@@ -2278,7 +2245,7 @@ const ProfileSettings = () => {
     setError('');
     setStatus('');
     try {
-      await changePasswordApi(passwordForm);
+      await AuthService.changePassword(passwordForm);
       setPasswordForm({ currentPassword: '', newPassword: '' });
       setStatus('Password updated.');
       triggerSavedAction('update-password');
@@ -2291,7 +2258,7 @@ const ProfileSettings = () => {
     setError('');
     setStatus('');
     try {
-      await revokeAuthSessionApi(sessionId);
+      await AuthService.revokeAuthSession(sessionId);
       setSessions(current => current.filter(item => item.id !== sessionId));
       setStatus('Session revoked.');
     } catch (revokeError) {
@@ -2303,11 +2270,11 @@ const ProfileSettings = () => {
     setError('');
     setStatus('');
     try {
-      await logoutOtherSessionsApi();
+      await AuthService.logoutOtherSessions();
       const loadSessions = async () => {
         setLoadingSessions(true);
         try {
-          const data = await getAuthSessionsApi();
+          const data = await AuthService.getAuthSessions();
           setSessions(data || []);
         } catch { }
         setLoadingSessions(false);
@@ -2323,7 +2290,7 @@ const ProfileSettings = () => {
     setError('');
     setStatus('Requesting data archive...');
     try {
-      const resp = await exportUserDataApi();
+      const resp = await AuthService.exportUserData();
       setStatus(resp.message || 'Data bundle preparation started. You will receive an email shortly.');
     } catch (err) {
       setError(err?.message || 'Verification of privacy service failed.');
@@ -2334,7 +2301,7 @@ const ProfileSettings = () => {
     setDeletingAccount(true);
     setError('');
     try {
-      await deleteUserAccountApi();
+      await AuthService.deleteUserAccount();
       clearStoredSessionToken();
       window.location.reload();
     } catch (err) {
@@ -2604,7 +2571,7 @@ const OmegaSettings = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await getOmegaStatusApi();
+      const data = await AnalyticsService.getOmegaStatus();
       setProtocol(data?.protocol || null);
       setEvents(Array.isArray(data?.events) ? data.events : []);
     } catch (loadError) {
@@ -2630,7 +2597,7 @@ const OmegaSettings = () => {
     setError('');
     setStatus('');
     try {
-      const data = await armOmegaApi({
+      const data = await AnalyticsService.armOmega({
         confirmationCode: armCode,
         cancelCode: cancelCode
       });
@@ -2650,7 +2617,7 @@ const OmegaSettings = () => {
     setError('');
     setStatus('');
     try {
-      const data = await cancelOmegaApi({ cancelCode });
+      const data = await AnalyticsService.cancelOmega({ cancelCode });
       setProtocol(data?.protocol || null);
       setEvents(Array.isArray(data?.events) ? data.events : []);
       setStatus('Omega sequence cancelled.');
@@ -2665,7 +2632,7 @@ const OmegaSettings = () => {
     setError('');
     setStatus('');
     try {
-      await executeOmegaApi({ confirmationCode: executeCode });
+      await AnalyticsService.executeOmega({ confirmationCode: executeCode });
       clearStoredSessionToken();
       setStatus('Omega executed. Local app data was purged. Reloading...');
       window.setTimeout(() => window.location.reload(), 900);
@@ -2865,7 +2832,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
       setLoadingMembers(true);
       setError('');
       try {
-        const rows = await getWorkspaceMembershipsApi(selectedWorkspaceId);
+        const rows = await SettingsService.getWorkspaceMemberships(selectedWorkspaceId);
         setMemberships(rows);
       } catch (loadError) {
         setError(loadError.message || 'Unable to load workspace members.');
@@ -2909,7 +2876,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     setError('');
     setStatusMessage('');
     try {
-      await updateWorkspaceApi(selectedWorkspaceId, { name: workspaceName.trim() });
+      await SettingsService.updateWorkspace(selectedWorkspaceId, { name: workspaceName.trim() });
       await refreshSession?.();
       setStatusMessage('Workspace updated.');
       triggerSavedAction('save-workspace-name');
@@ -2923,7 +2890,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     setError('');
     setStatusMessage('');
     try {
-      await createWorkspaceApi({ name: newWorkspaceName.trim() });
+      await SettingsService.createWorkspace({ name: newWorkspaceName.trim() });
       const session = await refreshSession?.();
       const nextWorkspaceId = session?.tenant?.id;
       setNewWorkspaceName('');
@@ -2945,7 +2912,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     setError('');
     setStatusMessage('');
     try {
-      await updateCanonicalTenantSettingsApi({
+      await SettingsService.updateCanonicalTenantSettings({
         media: {
           ...(tenantSettings?.media || {}),
           transcriptionProvider: normalized,
@@ -2968,7 +2935,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     setError('');
     setStatusMessage('');
     try {
-      const response = await deleteWorkspaceApi(selectedWorkspaceId);
+      const response = await SettingsService.deleteWorkspace(selectedWorkspaceId);
       const refreshed = await refreshSession?.();
       const nextWorkspaceId = refreshed?.tenant?.id || response?.fallback_workspace_id || alternateWorkspace?.id || '';
       setSelectedWorkspaceId(nextWorkspaceId);
@@ -2987,7 +2954,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     setError('');
     setStatusMessage('');
     try {
-      const response = await addWorkspaceMemberApi(selectedWorkspaceId, {
+      const response = await SettingsService.addWorkspaceMember(selectedWorkspaceId, {
         email: newMemberEmail.trim(),
         role: newMemberRole
       });
@@ -3006,7 +2973,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     if (!selectedWorkspaceId) return;
     setError('');
     try {
-      const response = await updateWorkspaceMemberApi(selectedWorkspaceId, membershipId, { role });
+      const response = await SettingsService.updateWorkspaceMember(selectedWorkspaceId, membershipId, { role });
       setMemberships(response.memberships || []);
       await reloadRoles();
       setStatusMessage('Member role updated.');
@@ -3019,7 +2986,7 @@ const WorkspaceSettings = ({ view = 'all' }) => {
     if (!selectedWorkspaceId) return;
     setError('');
     try {
-      const response = await removeWorkspaceMemberApi(selectedWorkspaceId, membershipId);
+      const response = await SettingsService.removeWorkspaceMember(selectedWorkspaceId, membershipId);
       setMemberships(response.memberships || []);
       await reloadRoles();
       setStatusMessage('Member removed.');
@@ -3576,7 +3543,7 @@ const AgentCard = ({ agent, styles, onSave, loadingList }) => {
     if (!localName.trim()) return;
     setSaving(true);
     try {
-      await updateAiAgentApi(agent.registryKey, { name: localName.trim() });
+      await AiService.updateAiAgent(agent.registryKey, { name: localName.trim() });
       setIsEditing(false);
       if (loadingList) await loadingList();
     } catch (err) {
@@ -3655,7 +3622,7 @@ const AgentsSection = () => {
   const loadAgentsList = async () => {
     setLoading(true);
     try {
-      const data = await getAiAgentsApi(true);
+      const data = await AiService.getAiAgents(true);
       const normalized = Array.isArray(data) ? data.map(a => ({
         ...a,
         registryKey: a.registryKey || a.registry_key || a.agent_id || a.agentId,

@@ -1,11 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Chrome, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
-import {
-  bootstrapOwnerApi,
-  getAuthStatusApi,
-  getGoogleAppAuthorizeUrl,
-  loginApi,
-} from '../services/backendApi';
+import { AuthService } from '../services/auth.service';
 import { storeSessionToken } from '../services/authStorage';
 import { openOAuthPopup } from '../utils/oauthPopup';
 
@@ -33,7 +28,7 @@ const AuthScreen = ({ onLogin }) => {
       setLoading(true);
       setError('');
       try {
-        const response = await getAuthStatusApi();
+        const response = await AuthService.getAuthStatus();
         if (!cancelled) {
           setStatus(response);
         }
@@ -77,8 +72,8 @@ const AuthScreen = ({ onLogin }) => {
     setError('');
     try {
       const session = isBootstrap
-        ? await bootstrapOwnerApi({ name, email, password })
-        : await loginApi({ email, password });
+        ? await AuthService.bootstrapOwner({ name, email, password })
+        : await AuthService.login({ email, password });
       finishLogin(session);
     } catch (authError) {
       setError(authError.message || 'Unable to sign in.');
@@ -91,7 +86,7 @@ const AuthScreen = ({ onLogin }) => {
     setSubmitting(true);
     setError('');
     try {
-      const payload = await openOAuthPopup(getGoogleAppAuthorizeUrl(), 'auth');
+      const payload = await openOAuthPopup(AuthService.getGoogleAppAuthorizeUrl(), 'auth');
       if (!payload?.session) {
         throw new Error('Google sign-in did not return a session.');
       }

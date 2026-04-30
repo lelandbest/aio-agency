@@ -13,28 +13,7 @@ import { useNotice } from '../../contexts/NoticeContext';
 import { playDigitTone } from '../../services/audioService';
 import ModuleHeader from '../../components/ModuleHeader';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
-import {
-    checkOptOutApi,
-    createPhoneNumberApi,
-    createSmsThreadApi,
-    deleteCommsProviderConfigApi,
-    deletePhoneNumberApi,
-    endCallSessionApi,
-    getCallSessionApi,
-    getCallSessionsApi,
-    getCommsIntegrationInfoApi,
-    getCommsOverviewApi,
-    getCommsProviderConfigsApi,
-    getCommsRoutesApi,
-    getContactsWithPhoneApi,
-    getPhoneNumbersApi,
-    getSmsMessagesApi,
-    getSmsThreadsApi,
-    saveCommsProviderConfigApi,
-    sendSmsApi,
-    startOutboundCallApi,
-    updatePhoneNumberApi,
-} from '../../services/backendApi';
+import { CommsService } from '../../services/comms.service';
 
 const shellClass = 'h-full min-h-0 flex flex-col overflow-hidden bg-[#050608] text-[var(--color-text-primary)] font-mono';
 const machinedSurface = 'bg-[#0a0c12] border border-white/5 shadow-[inset_0_2px_10px_rgba(255,255,255,0.02),0_20px_50px_rgba(0,0,0,0.5)]';
@@ -704,13 +683,13 @@ export default function SmsVoipModule({
     const loadAll = async () => {
         try {
             const [integration, configs, routesData, contactsData, overviewData, smsData, callData] = await Promise.all([
-                getCommsIntegrationInfoApi(),
-                getCommsProviderConfigsApi(),
-                getCommsRoutesApi(),
-                getContactsWithPhoneApi(),
-                getCommsOverviewApi(),
-                getSmsThreadsApi(50),
-                getCallSessionsApi(50)
+                CommsService.getCommsIntegrationInfo(),
+                CommsService.getCommsProviderConfigs(),
+                CommsService.getCommsRoutes(),
+                CommsService.getContactsWithPhone(),
+                CommsService.getCommsOverview(),
+                CommsService.getSmsThreads(50),
+                CommsService.getCallSessions(50)
             ]);
             setIntegrationInfo(integration || {});
             setProviderConfigs((configs || []).map(normalizeProvider));
@@ -735,7 +714,7 @@ export default function SmsVoipModule({
 
     useEffect(() => {
         if (selectedThreadId) {
-            getSmsMessagesApi(selectedThreadId).then(setMessages).catch(() => setMessages([]));
+            CommsService.getSmsMessages(selectedThreadId).then(setMessages).catch(() => setMessages([]));
         } else {
             setMessages([]);
         }
@@ -755,9 +734,9 @@ export default function SmsVoipModule({
         if (!selectedThreadId || !replyBody.trim()) return;
         setSendingSms(true);
         try {
-            await sendSmsApi({ threadId: selectedThreadId, body: replyBody.trim() });
+            await CommsService.sendSms({ threadId: selectedThreadId, body: replyBody.trim() });
             setReplyBody('');
-            const updated = await getSmsMessagesApi(selectedThreadId);
+            const updated = await CommsService.getSmsMessages(selectedThreadId);
             setMessages(updated);
         } catch (error) {
             showNotice({ type: 'error', message: error.message || 'Failed to send SMS.' });
@@ -772,7 +751,7 @@ export default function SmsVoipModule({
         if (!dialer.phoneNumber.trim()) return;
         try {
             const contact = contacts.find(c => c.phone === dialer.phoneNumber);
-            const result = await startOutboundCallApi({
+            const result = await CommsService.startOutboundCall({
                 phoneNumber: dialer.phoneNumber.trim(),
                 fromNumber: fromNumber || '',
                 contactId: contact?.id || null,
@@ -784,7 +763,7 @@ export default function SmsVoipModule({
             if (result.id && result.status !== 'ended' && result.status !== 'failed') {
                 callPollRef.current = setInterval(async () => {
                     try {
-                        const session = await getCallSessionApi(result.id);
+                        const session = await CommsService.getCallSession(result.id);
                         if (session) {
                             setActiveCall(prev => prev ? { ...prev, ...session } : null);
                             if (session.status === 'ended' || session.status === 'failed') {
@@ -805,7 +784,7 @@ export default function SmsVoipModule({
         if (!activeCall?.id) return;
         if (callPollRef.current) { clearInterval(callPollRef.current); callPollRef.current = null; }
         try {
-            await endCallSessionApi(activeCall.id, { disposition: 'completed', durationSeconds: callTime });
+            await CommsService.endCallSession(activeCall.id, { disposition: 'completed', durationSeconds: callTime });
             setActiveCall(null);
             showNotice({ type: 'success', message: 'Session ended.' });
             loadAll();
@@ -818,7 +797,7 @@ export default function SmsVoipModule({
         if (!numForm.number.trim()) return;
         setSavingNum(true);
         try {
-            await createPhoneNumberApi({ number: numForm.number.trim(), displayLabel: numForm.displayLabel.trim(), owner: numForm.owner.trim() });
+            await CommsService.createPhoneNumber({ number: numForm.number.trim(), displayLabel: numForm.displayLabel.trim(), owner: numForm.owner.trim() });
             setNumForm({ number: '', displayLabel: '', owner: '' });
             await loadAll();
             showNotice({ type: 'success', message: 'Number registered.' });
@@ -836,7 +815,7 @@ export default function SmsVoipModule({
             return;
         }
         try {
-            const result = await saveCommsProviderConfigApi(providerType, config.config || {}, true);
+            const result = await CommsService.saveCommsProviderConfig(providerType, config.config || {}, true);
             await loadAll();
 
             if (result.status === 'verified') {

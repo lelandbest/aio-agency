@@ -35,26 +35,11 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import {
-  bulkDeleteContactsApi,
-  createContactActivityApi,
-  createContactApi,
-  createEmailVerificationBulkTaskApi,
-  deleteContactApi,
-  getCalendarEventsApi,
-  getCompaniesApi,
-  getCommsContactSummaryApi,
-  getContactActivitiesApi,
-  getContactFormSubmissionsApi,
-  getOrdersApi,
-  getTagsApi,
-  listDeletedContactsApi,
-  openThreadForContactApi,
-  restoreContactApi,
-  triggerFlowManualApi,
-  updateContactApi,
-  toSnakeCase,
-} from '../../services/backendApi';
+import { CrmService, toSnakeCase } from '../../services/crm.service';
+import { CommsService } from '../../services/comms.service';
+import { OrdersService } from '../../services/orders.service';
+import { SettingsService } from '../../services/settings.service';
+import { CalendarService } from '../../services/calendar.service';
 import { FormsService } from '../../services/forms.service';
 import { FlowsService } from '../../services/flows.service';
 import { ContactsService } from '../../services/contacts.service';
@@ -802,14 +787,14 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     try {
       const [nextContacts, nextDeletedContacts, nextCompanies, nextTags] = await Promise.all([
         ContactsService.fetchContacts(),
-        listDeletedContactsApi(),
-        getCompaniesApi(),
-        getTagsApi(),
+        CrmService.listDeletedContacts(),
+        CrmService.getCompanies(),
+        CrmService.getTags(),
       ]);
 
       const secondaryResults = await Promise.allSettled([
-        getOrdersApi(),
-        getCalendarEventsApi(),
+        OrdersService.getOrders(),
+        CalendarService.getCalendarEvents(),
         FlowsService.fetchFlows(),
         FormsService.fetchForms(true),
       ]);
@@ -850,9 +835,9 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     }
     setDetailLoading(true);
     const [activitiesResult, submissionsResult, commsResult] = await Promise.allSettled([
-      getContactActivitiesApi(contactId),
-      getContactFormSubmissionsApi(contactId),
-      getCommsContactSummaryApi(contactId),
+      CrmService.getContactActivities(contactId),
+      CrmService.getContactFormSubmissions(contactId),
+      CommsService.getCommsContactSummary(contactId),
     ]);
     setContactActivities(activitiesResult.status === 'fulfilled' && Array.isArray(activitiesResult.value) ? activitiesResult.value : []);
     setContactFormSubmissions(submissionsResult.status === 'fulfilled' && Array.isArray(submissionsResult.value) ? submissionsResult.value : []);
@@ -909,7 +894,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const handleCreateContact = async (payload) => {
     setCreating(true);
     try {
-      const created = await createContactApi(payload);
+      const created = await CrmService.createContact(payload);
       setShowCreateModal(false);
       setShowDeleted(false);
       await loadData({ silent: true });
@@ -938,7 +923,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
         updates.pipelineStage = null;
       }
 
-      const updated = await updateContactApi(selectedContact.id, updates);
+      const updated = await CrmService.updateContact(selectedContact.id, updates);
       setContacts((current) => current.map((c) => (c.id === updated.id ? updated : c)));
       showNotice({ type: 'success', message: 'Pipelines membership synchronized.' });
     } catch (error) {
@@ -976,7 +961,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     }
     setSaving(true);
     try {
-      const updated = await updateContactApi(selectedContact.id, payload);
+      const updated = await CrmService.updateContact(selectedContact.id, payload);
       setContacts((current) => current.map((contact) => (contact.id === updated.id ? updated : contact)));
       setEditDraft(draftFromContact(updated, companies));
       setEditMode(false);
@@ -993,7 +978,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!contact) return;
     const nextTags = (contact.tags || []).filter((t) => t !== tagToRemove);
     try {
-      await updateContactApi(contactId, { tags: nextTags });
+      await CrmService.updateContact(contactId, { tags: nextTags });
       await loadData({ silent: true });
     } catch (error) {
       showNotice({ type: 'error', message: error.message || 'Unable to remove tag.' });
@@ -1012,7 +997,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     }
     const nextTags = uniqueValues([...(contact.tags || []), trimmed]);
     try {
-      await updateContactApi(contactId, { tags: nextTags });
+      await CrmService.updateContact(contactId, { tags: nextTags });
       setTagInput('');
       setShowTagDropdown(false);
       await loadData({ silent: true });
@@ -1026,7 +1011,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     const deletedSnapshot = selectedContact;
     setDeleting(true);
     try {
-      await deleteContactApi(deletedSnapshot.id);
+      await CrmService.deleteContact(deletedSnapshot.id);
       setConfirmDelete(false);
       setSelectedContactId(null);
       setContacts((current) => current.filter((contact) => contact.id !== deletedSnapshot.id));
@@ -1038,7 +1023,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
           label: 'Undo',
           onClick: async () => {
             try {
-              await restoreContactApi(deletedSnapshot.id);
+              await CrmService.restoreContact(deletedSnapshot.id);
               setShowDeleted(false);
               await loadData({ silent: true });
               setSelectedContactId(deletedSnapshot.id);
@@ -1060,7 +1045,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!contactId) return;
     setRestoring(true);
     try {
-      await restoreContactApi(contactId);
+      await CrmService.restoreContact(contactId);
       setShowDeleted(false);
       await loadData({ silent: true });
       setSelectedContactId(contactId);
@@ -1089,7 +1074,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!selectedIds.length) return;
     setBulkSaving(true);
     try {
-      await bulkDeleteContactsApi(selectedIds);
+      await CrmService.bulkDeleteContacts(selectedIds);
       setSelectedIds([]);
       if (selectedContact && selectedIds.includes(selectedContact.id)) setSelectedContactId(null);
       await loadData({ silent: true });
@@ -1105,7 +1090,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!selectedIds.length) return;
     setBulkSaving(true);
     try {
-      await createEmailVerificationBulkTaskApi({ contactIds: selectedIds, mode: 'power' });
+      await SettingsService.createEmailVerificationBulkTask({ contactIds: selectedIds, mode: 'power' });
       showNotice({ type: 'success', message: 'Bulk verification queued.' });
       await loadData({ silent: true });
     } catch (error) {
@@ -1123,7 +1108,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
       await Promise.all(selectedIds.map((contactId) => {
         const existing = liveContactMap.get(contactId);
         const merged = uniqueValues([...(existing?.tags || []), ...nextTags]);
-        return updateContactApi(contactId, { tags: merged });
+        return CrmService.updateContact(contactId, { tags: merged });
       }));
       setShowTagModal(false);
       await loadData({ silent: true });
@@ -1139,7 +1124,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!flowId || !contactIds.length) return;
     setBulkSaving(true);
     try {
-      await triggerFlowManualApi(flowId, { contactIds });
+      await FlowsService.triggerFlowManual(flowId, { contactIds });
       setShowFlowModal(false);
       showNotice({ type: 'success', message: 'Flow triggered.' });
     } catch (error) {
@@ -1160,7 +1145,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!toolbarSelectionIds.length) return;
     setBulkSaving(true);
     try {
-      await createEmailVerificationBulkTaskApi({ contactIds: toolbarSelectionIds, mode: 'power' });
+      await SettingsService.createEmailVerificationBulkTask({ contactIds: toolbarSelectionIds, mode: 'power' });
       showNotice({ type: 'success', message: 'Bulk verification queued.' });
       await loadData({ silent: true });
     } catch (error) {
@@ -1184,7 +1169,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     }
     setBulkSaving(true);
     try {
-      await bulkDeleteContactsApi(toolbarSelectionIds);
+      await CrmService.bulkDeleteContacts(toolbarSelectionIds);
       setSelectedIds([]);
       if (selectedContact && toolbarSelectionIds.includes(selectedContact.id)) setSelectedContactId(null);
       await loadData({ silent: true });
@@ -1213,7 +1198,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     if (!selectedContact || !normalizeText(noteDraft) || showDeleted) return;
     setNoteSaving(true);
     try {
-      const created = await createContactActivityApi(selectedContact.id, {
+      const created = await CrmService.createContactActivity(selectedContact.id, {
         activityType: 'note',
         title: 'Operator note',
         description: noteDraft,
@@ -1231,7 +1216,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const openThreadForSelectedContact = async (channelType) => {
     if (!selectedContact) return;
     try {
-      const thread = await openThreadForContactApi({
+      const thread = await CommsService.openThreadForContact({
         contactId: selectedContact.id,
         channelType,
         subject: `${channelType.toUpperCase()} follow-up for ${contactDisplayName(selectedContact)}`,

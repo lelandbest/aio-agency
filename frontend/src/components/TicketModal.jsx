@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { createHelpTicketApi } from '../services/backendApi';
+import { HelpService } from '../services/help.service';
 
 const TicketModal = ({ isOpen, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +23,7 @@ const TicketModal = ({ isOpen, onClose }) => {
     };
 
     try {
-      await createHelpTicketApi(payload);
+      await HelpService.createHelpTicket(payload);
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);

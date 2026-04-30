@@ -3,7 +3,6 @@
  * Backend-backed flow persistence.
  */
 
-import { getFlowApi, saveFlowApi } from '../../../services/backendApi';
 import { FlowsService } from '../../../services/flows.service';
 import { generateULID } from './ulid';
 
@@ -17,12 +16,12 @@ export const createFlowRepository = () => {
     if (!flowId) {
       return null;
     }
-    return getFlowApi(flowId);
+    return FlowsService.getFlow(flowId);
   };
 
   const saveFlow = async (flow) => {
     const flowId = flow?.id || generateULID();
-    return saveFlowApi(flowId, {
+    return FlowsService.saveFlow(flowId, {
       ...flow,
       id: flowId,
       updatedAt: new Date().toISOString(),

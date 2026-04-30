@@ -3,11 +3,12 @@
  * Handles form submissions, contact creation/updates, CMS storage, activity tracking, and Comms threads
  */
 
-import { getCmsTableDataApi, getFormByIdApi, submitFormApi } from './backendApi';
+import { CrmService } from './crm.service';
+import { FormsService } from './forms.service';
 
 export const processFormSubmission = async (formId, formData) => {
   try {
-    return await submitFormApi(formId, formData);
+    return await FormsService.submitForm(formId, formData);
   } catch (error) {
     console.error('Form submission processing error:', error);
     throw error;
@@ -15,16 +16,16 @@ export const processFormSubmission = async (formId, formData) => {
 };
 
 export const getFormSubmissions = async (formId) => {
-  const form = await getFormByIdApi(formId);
+  const form = await FormsService.getFormById(formId);
   if (!form?.slug) {
     return [];
   }
-  const submissions = await getCmsTableDataApi(form.slug);
+  const submissions = await CrmService.getCmsTableData(form.slug);
   return (submissions || []).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
 };
 
 export const getCMSTableData = async (formSlug) => {
-  const data = await getCmsTableDataApi(formSlug);
+  const data = await CrmService.getCmsTableData(formSlug);
   return (data || []).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
 };
 

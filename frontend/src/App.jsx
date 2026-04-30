@@ -9,7 +9,8 @@ import TopBar from './components/TopBar';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
-import { getCurrentSessionApi, logoutApi, switchTenantSessionApi, updateCanonicalTenantSettingsApi } from './services/backendApi';
+import { AuthService } from './services/auth.service';
+import { SettingsService } from './services/settings.service';
 import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
 import * as Lucide from 'lucide-react';
@@ -23,6 +24,7 @@ import { VTTProvider, useVTT } from './contexts/VTTContext';
 import VoiceCommandModule from './modules/VoiceCommand';
 import StatusBar from './components/StatusBar';
 import Boom from './components/Boom';
+import InstallPrompt from './components/InstallPrompt';
 
 /** Bridge: listens for the sidebar's aio:open-charlie event and opens the VTT modal. */
 function VTTOpener() {
@@ -382,7 +384,7 @@ const App = () => {
 
     (async () => {
       try {
-        await updateCanonicalTenantSettingsApi({
+        await SettingsService.updateCanonicalTenantSettings({
           navigation: {
             ...(activeTenantSettings?.navigation || {}),
             menuStructure: next,
@@ -544,7 +546,7 @@ const App = () => {
       }
 
       try {
-        const restoredSession = await getCurrentSessionApi();
+        const restoredSession = await AuthService.getSession();
         if (!cancelled) {
           setSession(restoredSession);
         }
@@ -628,14 +630,14 @@ const App = () => {
   }, []);
 
   const refreshSession = async () => {
-    const refreshed = await getCurrentSessionApi();
+    const refreshed = await AuthService.getSession();
     setSession(refreshed);
     return refreshed;
   };
 
   const handleLogout = async () => {
     try {
-      await logoutApi();
+      await AuthService.logout();
     } catch { }
     clearStoredSessionToken();
     setSession(null);
@@ -646,7 +648,7 @@ const App = () => {
     if (!tenantId || session?.tenant?.id === tenantId) {
       return session;
     }
-    const nextSession = await switchTenantSessionApi(tenantId);
+    const nextSession = await AuthService.switchTenantSession(tenantId);
     setSession(nextSession);
     if (isClientRole(nextSession?.user?.role) && !CLIENT_ALLOWED_MODULES.has(activeModule)) {
       setActiveModule(DEFAULT_CLIENT_MODULE);
@@ -937,6 +939,7 @@ const App = () => {
             <GlobalNoticeViewport />
           </BrandProvider>
           <StatusBar />
+            <InstallPrompt />
         </SignalProvider>
       </ThemeProvider>
     </NoticeProvider>

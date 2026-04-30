@@ -9,7 +9,7 @@ import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import TemplateLibraryModal from './components/TemplateLibraryModal';
 import flowRepository from './utils/flowRepository';
 import { getStoredCustomTemplates } from './utils/templateLibraryStore';
-import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi, saveFlowApi } from '../../services/backendApi';
+import { FlowsService } from '../../services/flows.service';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
@@ -106,7 +106,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const [backendFolders, setBackendFolders] = useState([]);
 
   useEffect(() => {
-    listFlowFoldersApi().then(setBackendFolders).catch(() => setBackendFolders([]));
+    FlowsService.listFlowFolders().then(setBackendFolders).catch(() => setBackendFolders([]));
   }, []);
 
   const flowFolders = useMemo(
@@ -123,7 +123,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   const handleFolderRename = async (folderId, newName) => {
     try {
-      await renameFlowFolderApi(folderId, newName);
+      await FlowsService.renameFlowFolder(folderId, newName);
       setBackendFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
     } catch (err) {
       showNotice({ type: 'error', message: 'Rename failed: ' + err.message });
@@ -141,7 +141,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
     if (isConfirmed) {
       try {
-        await deleteFlowFolderApi(folderId);
+        await FlowsService.deleteFlowFolder(folderId);
         setBackendFolders(prev => prev.filter(f => f.id !== folderId));
       } catch (err) {
         showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
@@ -206,7 +206,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
     if (name) {
       try {
-        await createFlowFolderApi(name);
+        await FlowsService.createFlowFolder(name);
         loadFlows();
       } catch (err) {
         showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
@@ -243,10 +243,10 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       try {
         setLoading(true);
         if (selectedFlowIds.length > 0) {
-          await bulkDeleteFlowsApi(selectedFlowIds);
+          await FlowsService.bulkDeleteFlows(selectedFlowIds);
         }
         for (const folderId of selectedFolderIds) {
-          await deleteFlowFolderApi(folderId).catch(() => {});
+          await FlowsService.deleteFlowFolder(folderId).catch(() => {});
         }
         setSelectedFlowIds([]);
         setSelectedFolderIds([]);
@@ -379,7 +379,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
                 const newStatus = isActive ? 'Draft' : 'Active';
                 const previousStatus = flow.status;
                 setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, status: newStatus } : f));
-                saveFlowApi(flow.id, { ...flow, status: newStatus, updatedAt: new Date().toISOString() })
+                FlowsService.saveFlow(flow.id, { ...flow, status: newStatus, updatedAt: new Date().toISOString() })
                   .then(() => loadFlows())
                   .catch(() => {
                     setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, status: previousStatus } : f));
@@ -447,7 +447,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
                     confirmText: 'Delete Flow'
                   });
                   if (isConfirmed) {
-                    deleteFlowApi(flow.id).then(() => loadFlows());
+                    FlowsService.deleteFlow(flow.id).then(() => loadFlows());
                   }
                 }}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"

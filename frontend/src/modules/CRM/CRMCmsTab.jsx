@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCmsTableDataApi } from '../../services/backendApi';
+import { CrmService } from '../../services/crm.service';
 import { FormsService } from '../../services/forms.service';
 import { FileText, List, Grid3X3, Download, Loader2 } from 'lucide-react';
 
@@ -45,7 +45,7 @@ export default function CRMCmsTab() {
     setSelectedForm(form);
     setLoadingData(true);
     try {
-      const data = await getCmsTableDataApi(form.slug);
+      const data = await CrmService.getCmsTableData(form.slug);
       setFormData(Array.isArray(data) ? data : []);
     } catch (e) {
       setFormData([]);

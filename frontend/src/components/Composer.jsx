@@ -8,7 +8,7 @@ import {
   Plus, ArrowUp, ArrowDown, Type
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getVaultApi, uploadMediaFileApi, createMediaTranscriptJobApi } from '../services/backendApi';
+import { MediaService } from '../services/media.service';
 
 const ASSET_TYPES = {
   image: { icon: Image, label: 'IMAGE', color: 'cyan', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', text: 'text-cyan-400' },
@@ -1142,23 +1142,7 @@ export default function Composer({ activeModule, isOpen, onClose }) {
     try {
       const file = new File([boomCurrentSegment], `boom-${Date.now()}.webm`, { type: 'video/webm' });
       
-      // Prepare form data with BOOM source metadata
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('tags', 'BOOM');
-      
-      // Use backendApi's request directly to pass form data
-      const { request } = await import('../services/backendApi');
-      const response = await request('/api/media/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const result = response?.data ? 
-        Object.keys(response.data).reduce((acc, key) => {
-          const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          acc[camelKey] = response.data[key];
-          return acc;
-        }, {}) : null;
+      const result = await MediaService.uploadMediaFile(file, 'BOOM');
       
       console.log('Boom saved to vault:', result);
       
@@ -1168,7 +1152,7 @@ export default function Composer({ activeModule, isOpen, onClose }) {
       // Auto-transcribe: trigger Studio transcription path
       if (boomAutoTranscribe && vaultResult?.assetId) {
         try {
-          const transcriptResult = await createMediaTranscriptJobApi({
+          const transcriptResult = await MediaService.createMediaTranscriptJob({
             assetId: vaultResult.assetId,
             source: 'BOOM',
           });
@@ -1201,7 +1185,7 @@ export default function Composer({ activeModule, isOpen, onClose }) {
     const loadVault = async () => {
       try {
         setVaultLoading(true);
-        const data = await getVaultApi();
+        const data = await MediaService.getVault();
         setVaultAssets(Array.isArray(data) ? data : []);
         setVaultError(null);
       } catch (err) {

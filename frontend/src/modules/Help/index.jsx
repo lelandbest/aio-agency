@@ -7,15 +7,8 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { 
-  getHelpArticlesApi,
-  createHelpTicketApi,
-  getOperatorAssistResponseApi,
-  getHelpTicketsApi,
-  getHelpBroadcastsApi,
-  generateDocsApi,
-  captureMissingHelpApi
-} from '../../services/backendApi';
+import { HelpService } from '../../services/help.service';
+import { AiService } from '../../services/ai.service';
 import { dispatchAction } from '../../orchestration';
 import { helpTemplates } from './templates/helpTemplates';
 import { 
@@ -64,8 +57,8 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
 
   const checkAiStatus = async () => {
     try {
-      const { getAiProviderConfigsApi } = await import('../../services/backendApi');
-      const configs = await getAiProviderConfigsApi();
+      const { AiService } = await import('../../services/ai.service');
+      const configs = await AiService.getAiProviderConfigs();
       const isActive = configs && configs.length > 0;
       setAiActive(isActive);
     } catch (err) {
@@ -80,7 +73,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     setLoading(true);
     try {
       const results = await Promise.allSettled([
-        getHelpArticlesApi()
+        HelpService.getHelpArticles()
       ]);
       
       const itemsData = results[0].status === 'fulfilled' ? results[0].value : [];
@@ -91,9 +84,9 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
       if (helpArticles.length === 0) {
         try {
           setGeneratingDocs(true);
-          const genResult = await generateDocsApi();
+          const genResult = await HelpService.generateDocs();
           if (genResult?.generated > 0) {
-            const newArticles = await getHelpArticlesApi();
+            const newArticles = await HelpService.getHelpArticles();
             setArticles(newArticles || []);
           }
         } catch (genErr) {
@@ -122,8 +115,8 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
         setTicketsLoading(true);
         try {
           const [ticketsData, broadcastsData] = await Promise.allSettled([
-            getHelpTicketsApi(),
-            getHelpBroadcastsApi()
+            HelpService.getHelpTickets(),
+            HelpService.getHelpBroadcasts()
           ]);
           if (ticketsData.status === 'fulfilled') setTickets(ticketsData.value || []);
           if (broadcastsData.status === 'fulfilled') setBroadcasts(broadcastsData.value || []);
@@ -182,7 +175,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     
     setAskingCharlie(true);
     try {
-      const response = await getOperatorAssistResponseApi({
+      const response = await AiService.getOperatorAssistResponse({
         message: searchQuery,
         context: {
           module: 'help',
@@ -227,7 +220,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
       // Capture missing help if no articles matched the query
       if (searchResults.articles.length === 0 && searchQuery.trim()) {
         try {
-          await captureMissingHelpApi(searchQuery.trim());
+          await HelpService.captureMissingHelp(searchQuery.trim());
         } catch (_) { /* non-blocking */ }
       }
     } catch (err) {

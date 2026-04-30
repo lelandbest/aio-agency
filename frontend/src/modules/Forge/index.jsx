@@ -21,13 +21,8 @@ import {
 import ModuleHeader from '../../components/ModuleHeader';
 import { useNotice } from '../../contexts/NoticeContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
-import {
-  getVaultApi,
-  getBrainItemsApi,
-  saveTranscriptApi,
-  getApiBaseUrl,
-  withSessionToken,
-} from '../../services/backendApi';
+import { MediaService } from '../../services/media.service';
+import { BrainService } from '../../services/brain.service';
 
 // --- SESSION CACHE KEYS ---
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
@@ -100,7 +95,7 @@ const resolvePlaybackUrl = (rawUrl) => {
     return url;
   }
   if (url.startsWith('/api/')) {
-    return withSessionToken(`${getApiBaseUrl()}${url}`);
+    return MediaService.buildAssetUrl(url);
   }
   return url;
 };
@@ -193,8 +188,8 @@ const Forge = () => {
     setLoading(true);
     try {
       const [vaultData, cortexData] = await Promise.allSettled([
-        getVaultApi(),
-        getBrainItemsApi(),
+        MediaService.getVault(),
+        BrainService.getBrainItems(),
       ]);
       if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
       if (cortexData.status === 'fulfilled') setCortexRailItems(Array.isArray(cortexData.value) ? cortexData.value : []);
@@ -322,7 +317,7 @@ const Forge = () => {
         filename: sourceContext?.filename || undefined,
         sourceContext,
       };
-      const result = await saveTranscriptApi(payload);
+      const result = await BrainService.saveTranscript(payload);
       if (result) {
         const nextState = { ...forgeState, status: 'Pushed' };
         writeForgeWorkbenchState(nextState);

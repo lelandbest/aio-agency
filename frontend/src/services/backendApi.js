@@ -2161,4 +2161,11 @@ export async function captureMissingHelpApi(query) {
   return response.data || null;
 }
 
+export async function voicePreviewApi(payload) {
+  return request('/api/media/voice-preview', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export { API_BASE_URL };

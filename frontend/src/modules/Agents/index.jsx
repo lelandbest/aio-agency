@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield, Brain, Headset } from 'lucide-react';
-import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
+import { AiService } from '../../services/ai.service';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
@@ -532,7 +532,7 @@ const AIOAgentsModule = () => {
     setPollingRunId(runId);
     runPollIntervalRef.current = setInterval(async () => {
       try {
-        const run = hydrateActiveRun(await getAiRunApi(runId));
+        const run = hydrateActiveRun(await AiService.getAiRun(runId));
         setActiveRun(run);
         const status = (run?.status || '').toLowerCase();
         if (['completed', 'failed', 'success'].includes(status)) {
@@ -580,10 +580,10 @@ const AIOAgentsModule = () => {
   });
 
   useEffect(() => {
-    getAiAgentsApi(true)
+    AiService.getAiAgents(true)
       .then((data) => setAgents(Array.isArray(data) ? data.map(normalizeAgentRecord) : []))
       .catch(() => setAgents([]));
-    getAiRunsApi(12)
+    AiService.getAiRuns(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
       .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
   }, []);
@@ -593,7 +593,7 @@ const AIOAgentsModule = () => {
       setRoleBundle(null);
       return;
     }
-    getWorkspaceRolesApi(currentWorkspaceId)
+    AiService.getWorkspaceRoles(currentWorkspaceId)
       .then((data) => setRoleBundle(data))
       .catch((error) => setRolesError(error.message || 'Unable to load role authority.'));
   }, [currentWorkspaceId, canManageRoles]);
@@ -773,7 +773,7 @@ const AIOAgentsModule = () => {
     const isCommand = nextMessage.startsWith('/') || nextMessage.startsWith('!') || COMMAND_REGEX.test(nextMessage);
 
     try {
-      const response = await runAiCommandApi({
+      const response = await AiService.runAiCommand({
         command: isCommand ? nextMessage.replace(/^[\/!]/, '') : nextMessage,
         agent: isCommand ? 'CHARLIE' : (selectedAgent || 'CHARLIE'),
         intent: isCommand ? 'command' : 'conversation',
@@ -800,7 +800,7 @@ const AIOAgentsModule = () => {
           )
         );
         try {
-          const run = hydrateActiveRun(await getAiRunApi(runId));
+          const run = hydrateActiveRun(await AiService.getAiRun(runId));
           setActiveRun(run);
           setMessages((prev) =>
             prev.map((msg) =>
@@ -873,7 +873,7 @@ const AIOAgentsModule = () => {
           );
         }
       }
-      const latestRuns = await getAiRunsApi(12);
+      const latestRuns = await AiService.getAiRuns(12);
       setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
       if (selectedFlow) {
         clearSelectedFlow();
@@ -965,7 +965,7 @@ const AIOAgentsModule = () => {
   const handleSelectRun = async (runId, nextView = 'command') => {
     if (!runId) return;
     const existingRun = aiRuns.find((item) => item?.id === runId) || null;
-    const run = hydrateActiveRun(existingRun || await getAiRunApi(runId));
+    const run = hydrateActiveRun(existingRun || await AiService.getAiRun(runId));
     if (!run) return;
     const nextAgentKey = run.executing_agent || run.agent_role || activeAgent?.registry_key || activeAgent?.name || '';
     const nextAgent = agents.find((agent) => (agent.registryKey || agent.registry_key || agent.name) === nextAgentKey) || activeAgent;
@@ -1093,7 +1093,7 @@ const AIOAgentsModule = () => {
     setRolesBusy(true);
     setRolesError('');
     try {
-      const nextBundle = await attachWorkspaceRoleApi(currentWorkspaceId, attachRoleId, {
+      const nextBundle = await AiService.attachWorkspaceRole(currentWorkspaceId, attachRoleId, {
         entityType: 'bot',
         entityId: activeBotKey,
       });
@@ -1110,7 +1110,7 @@ const AIOAgentsModule = () => {
     setRolesBusy(true);
     setRolesError('');
     try {
-      const nextBundle = await detachWorkspaceRoleApi(currentWorkspaceId, roleId, 'bot', activeBotKey);
+      const nextBundle = await AiService.detachWorkspaceRole(currentWorkspaceId, roleId, 'bot', activeBotKey);
       setRoleBundle(nextBundle);
     } catch (detachError) {
       setRolesError(detachError.message || 'Unable to detach role.');

@@ -1,20 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
-import {
-  createFormApi,
-  createFormFolderApi,
-  deleteFormApi,
-  bulkDeleteFormsApi,
-  getCmsTablesApi,
-  getFormFoldersApi,
-  getVaultApi,
-  uploadMediaFileApi,
-  updateFormApi,
-  updateFormFolderApi,
-  normalizeSourceUrl,
-  deleteMediaAssetApi
-} from '../../services/backendApi';
-import { FormsService } from '../../services/forms.service';
+import { FormsService, normalizeSourceUrl } from '../../services/forms.service';
+import { MediaService } from '../../services/media.service';
+import { CrmService } from '../../services/crm.service';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -337,7 +325,7 @@ const FormBuilderModule = () => {
     const loadHeaderImageAssets = async () => {
       setHeaderImageLoading(true);
       try {
-        const media = await getVaultApi();
+        const media = await MediaService.getVault();
         if (!active) {
           return;
         }
@@ -364,7 +352,7 @@ const FormBuilderModule = () => {
 
   const fetchFolders = async () => {
     try {
-      const data = await getFormFoldersApi();
+      const data = await FormsService.getFormFolders();
       setFolders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading form folders:', error);
@@ -374,7 +362,7 @@ const FormBuilderModule = () => {
 
   const fetchCmsTables = async () => {
     try {
-      const data = await getCmsTablesApi();
+      const data = await CrmService.getCmsTables();
       setCmsTables(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading CMS tables:', error);
@@ -530,7 +518,7 @@ const FormBuilderModule = () => {
       schema: []
     };
     try {
-      const data = await createFormApi(newForm);
+      const data = await FormsService.createForm(newForm);
       if (data) {
         const normalized = normalizeFormRecord(data);
         setForms(prev => [normalized, ...prev]);
@@ -565,7 +553,7 @@ const FormBuilderModule = () => {
       schema: buildTemplateSchema(template?.fields || []),
     };
 
-    const created = await createFormApi(newForm);
+    const created = await FormsService.createForm(newForm);
     if (created) {
       const normalized = normalizeFormRecord(created);
       setForms(prev => [normalized, ...prev]);
@@ -595,7 +583,7 @@ const FormBuilderModule = () => {
     }
     try {
       setHeaderImageUploading(true);
-      const uploaded = await uploadMediaFileApi(file);
+      const uploaded = await MediaService.uploadMediaFile(file);
       const asset = uploaded?.asset || null;
       if (asset?.sourceUrl) {
         const absoluteUrl = normalizeSourceUrl(asset.sourceUrl);
@@ -628,7 +616,7 @@ const FormBuilderModule = () => {
     if (!confirmed) return;
 
     try {
-      await deleteMediaAssetApi(assetId);
+      await MediaService.deleteMediaAsset(assetId);
       setHeaderImageAssets(prev => prev.filter(a => (a.id || a.assetId) !== assetId));
       
       // If the currently selected image was this one, clear it from settings
@@ -655,7 +643,7 @@ const FormBuilderModule = () => {
 
     if (name) {
       try {
-        const data = await createFormFolderApi({
+        const data = await FormsService.createFormFolder({
           name,
           userId: '1',
           createdAt: new Date().toISOString(),
@@ -674,7 +662,7 @@ const FormBuilderModule = () => {
 
   const handleRenameFolder = async (folderId, newName) => {
     try {
-      await updateFormFolderApi(folderId, { name: newName });
+      await FormsService.updateFormFolder(folderId, { name: newName });
       await fetchFolders();
     } catch (error) {
       setAlertMessage('Failed to rename folder: ' + error.message);
@@ -692,7 +680,7 @@ const FormBuilderModule = () => {
 
     if (isConfirmed) {
       try {
-        await deleteFormFolderApi(folderId);
+        await FormsService.deleteFormFolder(folderId);
         await fetchFolders();
         await fetchForms();
       } catch (error) {
@@ -715,10 +703,10 @@ const FormBuilderModule = () => {
       try {
         setLoading(true);
         if (selectedForms.length > 0) {
-          await bulkDeleteFormsApi(selectedForms);
+          await FormsService.bulkDeleteForms(selectedForms);
         }
         for (const folderId of selectedFolders) {
-          await deleteFormFolderApi(folderId).catch(() => {});
+          await FormsService.deleteFormFolder(folderId).catch(() => {});
         }
         setSelectedForms([]);
         setSelectedFolders([]);
@@ -782,7 +770,7 @@ const FormBuilderModule = () => {
     });
     if (isConfirmed) {
       try {
-        await deleteFormApi(formId);
+        await FormsService.deleteForm(formId);
         fetchForms();
         fetchCmsTables();
       } catch (error) {
@@ -894,7 +882,7 @@ const FormBuilderModule = () => {
         });
         normalizedSchema.push(normalizedField);
       }
-      const savedForm = await updateFormApi(currentForm.id, {
+      const savedForm = await FormsService.updateForm(currentForm.id, {
         schema: normalizedSchema,
         name: forcedName || currentForm.name,
         folderId: currentForm.folderId,
@@ -952,7 +940,7 @@ const FormBuilderModule = () => {
         isActive: false
       };
 
-      const savedForm = await createFormApi(newFormRecord);
+      const savedForm = await FormsService.createForm(newFormRecord);
       if (savedForm) {
         setCurrentForm(normalizeFormRecord(savedForm));
       }
@@ -1069,7 +1057,7 @@ const FormBuilderModule = () => {
                 const newActive = !form.isActive;
                 const newStatus = newActive ? 'Active' : 'Inactive';
                 setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: newActive, status: newStatus } : f));
-                updateFormApi(form.id, { status: newStatus, isActive: newActive }).then(() => {
+                FormsService.updateForm(form.id, { status: newStatus, isActive: newActive }).then(() => {
                   fetchForms();
                 }).catch(() => {
                   setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: !newActive, status: !newActive ? 'Active' : 'Inactive' } : f));
@@ -1124,7 +1112,7 @@ const FormBuilderModule = () => {
                   confirmText: 'Rename'
                 });
                 if (newName && newName.trim()) {
-                  updateFormApi(form.id, { name: newName.trim() }).then(() => fetchForms());
+                  FormsService.updateForm(form.id, { name: newName.trim() }).then(() => fetchForms());
                 }
               }}
               className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"

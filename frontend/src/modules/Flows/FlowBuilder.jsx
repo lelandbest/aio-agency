@@ -36,15 +36,9 @@ import {
 
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
-import {
-  getAiRunApi,
-  getAiRunsApi,
-  triggerFlowManualApi,
-  getFlowApi,
-  getFlowProviderStatusesApi,
-  importWorkflowJsonApi,
-  getMediaRenderTemplatesApi,
-} from '../../services/backendApi';
+import { FlowsService } from '../../services/flows.service';
+import { AiService } from '../../services/ai.service';
+import { MediaService } from '../../services/media.service';
 import { FormsService } from '../../services/forms.service';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
@@ -588,7 +582,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     let active = true;
     const loadMediaRenderTemplates = async () => {
       try {
-        const data = await getMediaRenderTemplatesApi();
+        const data = await MediaService.getMediaRenderTemplates();
         if (!active) return;
         setMediaRenderTemplates(Array.isArray(data?.templates) ? data.templates : []);
       } catch (error) {
@@ -843,7 +837,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
 
     try {
-      const result = await importWorkflowJsonApi({
+      const result = await FlowsService.importWorkflowJson({
         templateJson: parsed,
         fileName: file.name,
         title: file.name.replace(/\.json$/i, ''),
@@ -1748,7 +1742,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     setFlowRunHistoryLoading(true);
     setFlowRunHistoryError('');
     try {
-      const runs = await getAiRunsApi(100, targetFlowId);
+      const runs = await AiService.getAiRuns(100, targetFlowId);
       setFlowRunHistory(Array.isArray(runs) ? runs.slice(0, 8) : []);
     } catch (error) {
       setFlowRunHistory([]);
@@ -1774,7 +1768,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (!flow?.id || providerStatusFetchedRef.current) return;
     providerStatusFetchedRef.current = true;
 
-    getFlowProviderStatusesApi(flow.id)
+    FlowsService.getFlowProviderStatuses(flow.id)
       .then((data) => {
         // Only update if we have actual data (not 401/unauthorized)
         if (data && data.providers) {
@@ -1856,7 +1850,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
     const pollLiveRun = async () => {
       try {
-        const storedRun = await getAiRunApi(liveExecutionRunId);
+        const storedRun = await AiService.getAiRun(liveExecutionRunId);
         if (cancelled || !storedRun) return;
 
         setLatestRunDetail(normalizeRunInspector(storedRun, {
@@ -1888,7 +1882,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (!historyRun?.id) return;
     setHistoryInspectingRunId(historyRun.id);
     try {
-      const storedRun = await getAiRunApi(historyRun.id);
+      const storedRun = await AiService.getAiRun(historyRun.id);
       if (!storedRun) {
         throw new Error('Stored run not found.');
       }
@@ -1916,7 +1910,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
     setHistoryComparingRunId(historyRun.id);
     try {
-      const storedRun = await getAiRunApi(historyRun.id);
+      const storedRun = await AiService.getAiRun(historyRun.id);
       if (!storedRun) {
         throw new Error('Stored run not found.');
       }
@@ -1989,7 +1983,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
 
       logToTerminal(`Starting manual run for ${persistedFlow.name || 'Untitled Flow'}...`, 'info');
-      const result = await triggerFlowManualApi(persistedFlow.id, {
+      const result = await FlowsService.triggerFlowManual(persistedFlow.id, {
         command: `Manual run for flow ${persistedFlow.name || 'Untitled Flow'}`,
         context: {
           flowId: persistedFlow.id,
@@ -2056,7 +2050,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
       const command = historyRun.command_text || `Rerun for flow ${persistedFlow.name || 'Untitled Flow'}`;
       logToTerminal(`Rerunning stored execution ${historyRun.id} for ${persistedFlow.name || 'Untitled Flow'}...`, 'info');
-      const result = await triggerFlowManualApi(persistedFlow.id, {
+      const result = await FlowsService.triggerFlowManual(persistedFlow.id, {
         command,
         context: buildRerunContext(historyRun, persistedFlow),
         runId,

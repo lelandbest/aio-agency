@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Image as ImageIcon, FileText, Video, Mic, Globe, Vault, Box, Music, File } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { getVaultApi } from '../../services/backendApi';
+import { MediaService } from '../../services/media.service';
 
 const VAULT_CATEGORIES = [
   { id: 'audio', label: 'Audio', icon: Music },
@@ -20,7 +20,7 @@ const VaultPage = ({ onBack }) => {
   useEffect(() => {
     const fetchVaultItems = async () => {
       try {
-        const items = await getVaultApi();
+        const items = await MediaService.getVault();
         // Strict Filter: Allow ONLY media types based on normalized TYPE tag/property
         const mediaOnly = items.filter(item => {
           const type = (item.type || '').toUpperCase();

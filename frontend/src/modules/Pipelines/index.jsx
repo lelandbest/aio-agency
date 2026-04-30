@@ -17,7 +17,9 @@ import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
-import { draftAiApi, openThreadForContactApi, updateContactApi, toSnakeCase } from '../../services/backendApi';
+import { AiService } from '../../services/ai.service';
+import { CommsService } from '../../services/comms.service';
+import { CrmService, toSnakeCase } from '../../services/crm.service';
 import { ContactsService } from '../../services/contacts.service';
 
 const STORAGE_KEY = 'aio_pipelines_layout_v2';
@@ -212,7 +214,7 @@ const PipelinesModule = () => {
       updates.pipelineStage = targetColumn.title;
     }
 
-    await updateContactApi(contact.id, updates);
+    await CrmService.updateContact(contact.id, updates);
     await loadContacts();
     setDraggedCard(null);
   };
@@ -276,7 +278,7 @@ const PipelinesModule = () => {
       setContacts(prev => prev.filter(c => c.id !== contactId));
       
       try {
-        await updateContactApi(contactId, { deletedAt: new Date().toISOString() });
+        await CrmService.updateContact(contactId, { deletedAt: new Date().toISOString() });
       } catch (error) {
         console.error('Error deleting contact:', error);
         await loadContacts(); // Rollback if failed
@@ -374,7 +376,7 @@ const PipelinesModule = () => {
   };
 
   const openCommsThread = async (contact, channelType = 'email') => {
-    const thread = await openThreadForContactApi({
+    const thread = await CommsService.openThreadForContact({
       contactId: contact.id,
       channelType: channelType,
       subject: `${channelType.toUpperCase()} follow-up for ${contact.firstName} ${contact.lastName}`.trim()
@@ -394,7 +396,7 @@ const PipelinesModule = () => {
     if (!highestSignal) return;
 
     try {
-      const response = await draftAiApi({
+      const response = await AiService.draftAi({
         module: 'pipelines',
         surface: 'deal-card',
         field: 'next-action',

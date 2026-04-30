@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { getProviderConfig, getProvidersByCategory } from '../utils/integrationConfigs';
 import { getBrandIcon, getBrandColors } from '../utils/brandIcons.jsx';
+import { AiService } from '../../../services/ai.service';
 
 export const IntegrationProviderSelector = ({
   category,
@@ -131,15 +132,10 @@ export const AddIntegrationPanel = ({
     setFetchingModels(true);
     setSubmitError('');
     try {
-      const response = await fetch(`/api/ai/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to fetch models');
-      }
-      const result = await response.json();
-      setAvailableModels(result.data || []);
-      if (result.data?.length > 0 && !formData.model) {
-        handleInputChange('model', result.data[0]);
+      const result = await AiService.getOllamaModels({ base_url: baseUrl });
+      setAvailableModels(result || []);
+      if (result?.length > 0 && !formData.model) {
+        handleInputChange('model', result[0]);
       }
     } catch (error) {
       setSubmitError(`Model Fetch Error: ${error.message}`);

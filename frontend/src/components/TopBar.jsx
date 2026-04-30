@@ -6,7 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
 import { Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X, AlertCircle } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
-import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi, getCallSessionApi } from '../services/backendApi';
+import { HelpService } from '../services/help.service';
+import { AiService } from '../services/ai.service';
+import { CommsService } from '../services/comms.service';
 
 import { playDigitTone } from '../services/audioService';
 
@@ -39,9 +41,9 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
   const loadData = async () => {
     try {
       const [numbersData, contactsData, routesData] = await Promise.all([
-        getPhoneNumbersApi(),
-        getContactsWithPhoneApi(),
-        getCommsRoutesApi()
+        CommsService.getPhoneNumbers(),
+        CommsService.getContactsWithPhone(),
+        CommsService.getCommsRoutes()
       ]);
       setContacts(contactsData);
       setOutgoingRoutes(routesData || { phoneNumbers: [], extensions: [] });
@@ -70,13 +72,13 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
     if (!phoneNumber || callState !== 'idle') return;
     setCallState('sending');
     try {
-      const result = await startOutboundCallApi({ phoneNumber, fromNumber, extensionId });
+      const result = await CommsService.startOutboundCall({ phoneNumber, fromNumber, extensionId });
       setActiveCall(result);
       setCallState(result.status || 'initiated');
       if (result.id && result.status !== 'ended' && result.status !== 'failed') {
         callPollRef.current = setInterval(async () => {
           try {
-            const session = await getCallSessionApi(result.id);
+            const session = await CommsService.getCallSession(result.id);
             if (session) {
               setActiveCall(prev => prev ? { ...prev, ...session } : null);
               setCallState(session.status || 'initiated');
@@ -98,7 +100,7 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
     if (callPollRef.current) { clearInterval(callPollRef.current); callPollRef.current = null; }
     if (activeCall) {
       try {
-        await endCallSessionApi(activeCall.id, { disposition: 'completed' });
+        await CommsService.endCallSession(activeCall.id, { disposition: 'completed' });
       } catch (e) {}
     }
     playTone('button', '1', 'retro');
@@ -256,7 +258,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
 
     const fetchNotifications = useCallback(async () => {
         try {
-            const result = await getNotificationsApi(50, false);
+            const result = await HelpService.getNotifications(50, false);
             let notifs = result.data || [];
             let count = result.unread_count || 0;
             
@@ -313,7 +315,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
         let cancelled = false;
         const fetchHealth = async () => {
             try {
-                const next = await getSystemHealthApi();
+                const next = await AiService.getSystemHealth();
                 if (!cancelled) {
                     setHealth(next || null);
                 }
@@ -334,7 +336,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
 
     const handleMarkAllRead = async () => {
         try {
-            await markAllNotificationsReadApi();
+            await HelpService.markAllNotificationsRead();
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
             setUnreadCount(0);
         } catch (error) {
@@ -345,7 +347,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
     const handleNotificationClick = async (notification) => {
         if (!notification.read) {
             try {
-                await markNotificationReadApi(notification.id);
+                await HelpService.markNotificationRead(notification.id);
                 setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, read: true } : n));
                 setUnreadCount(prev => Math.max(0, prev - 1));
             } catch (error) {

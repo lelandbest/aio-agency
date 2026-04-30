@@ -33,8 +33,7 @@ export default [
         patterns: [
           {
             group: ['*/backendApi'],
-            importNames: ['getFormsApi', 'getFlowsApi', 'getContactsApi', 'getCurrentSessionApi'],
-            message: 'Direct API imports are forbidden in UI modules. Use the corresponding Service from /services instead (e.g. FormsService, FlowsService, ContactsService, AuthService).',
+            message: 'Direct imports from backendApi are forbidden in UI modules. Use the corresponding Service from /services instead (e.g. MediaService, FormsService, CrmService, etc.). Utility functions (getApiBaseUrl, withSessionToken, toSnakeCase, normalizeSourceUrl, request) are re-exported from their respective service files.',
           },
         ],
       }],

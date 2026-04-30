@@ -1,4 +1,4 @@
-import { draftAiApi } from './backendApi';
+import { AiService } from './ai.service';
 
 // Canonical generic drafting helper built on `/api/ai/draft`. Use this for
 // AI-assisted writing; grounded system help belongs on `/api/assist`.
@@ -12,7 +12,7 @@ export async function requestAiSuggestion({
   fallback = null,
 }) {
   try {
-    const response = await draftAiApi({
+    const response = await AiService.draftAi({
       module,
       surface,
       field,

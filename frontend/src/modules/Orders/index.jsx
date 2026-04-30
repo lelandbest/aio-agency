@@ -3,7 +3,8 @@ import { Filter, Download, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-rea
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
-import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
+import { OrdersService } from '../../services/orders.service';
+import { AiService } from '../../services/ai.service';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
 const OrdersModule = () => {
@@ -17,7 +18,7 @@ const OrdersModule = () => {
   
   const runOrdersAssist = async () => {
     try {
-      const response = await draftAiApi({
+      const response = await AiService.draftAi({
         module: 'orders',
         surface: 'order-list',
         field: 'summary',
@@ -42,7 +43,7 @@ const OrdersModule = () => {
       onConfirm: async (contact) => {
         if (!contact) return;
         try {
-          await createOrderApi({ contactId: contact, totalAmount: 0, items: [] });
+          await OrdersService.createOrder({ contactId: contact, totalAmount: 0, items: [] });
           fetchData('orders');
         } catch (err) {
           showNotice({ type: 'error', message: 'Failed to create order: ' + err.message });
@@ -60,7 +61,7 @@ const OrdersModule = () => {
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteOrderApi(orderId);
+          await OrdersService.deleteOrder(orderId);
           fetchData('orders');
         } catch (err) {
           showNotice({ type: 'error', message: 'Failed to delete order: ' + err.message });
@@ -80,7 +81,7 @@ const OrdersModule = () => {
         setData([]);
         return;
       }
-      const response = await getOrdersApi();
+      const response = await OrdersService.getOrders();
       const formatted = response.map(o => ({
         id: o.id.split('-').pop() || o.id,
         contact: o.contact_id || 'Unknown',

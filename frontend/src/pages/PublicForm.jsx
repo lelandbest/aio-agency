@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getFormBySlugApi, normalizeSourceUrl } from '../services/backendApi';
+import { FormsService, normalizeSourceUrl } from '../services/forms.service';
 import { processFormSubmission } from '../services/formProcessor';
 
 const normalizePublicFormSettings = (settings = {}) => {
@@ -34,7 +34,7 @@ const PublicForm = ({ formSlug }) => {
     const loadForm = async () => {
       setLoading(true);
       try {
-        const data = await getFormBySlugApi(formSlug);
+        const data = await FormsService.getFormBySlug(formSlug);
         if (!data) {
           setError('Form not found');
           setLoading(false);

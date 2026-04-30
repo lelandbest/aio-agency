@@ -1,7 +1,43 @@
-import { getCurrentSessionApi } from './backendApi';
+import {
+  getAuthStatusApi,
+  bootstrapOwnerApi,
+  loginApi,
+  getCurrentSessionApi,
+  getProfileApi,
+  updateProfileApi,
+  uploadAvatarApi,
+  deleteAvatarApi,
+  changePasswordApi,
+  getAuthSessionsApi,
+  revokeAuthSessionApi,
+  exportUserDataApi,
+  getExportStatusApi,
+  getExportDownloadUrl,
+  deleteUserAccountApi,
+  logoutOtherSessionsApi,
+  logoutApi,
+  switchTenantSessionApi,
+  getGoogleAppAuthorizeUrl,
+} from './backendApi';
 
 export const AuthService = {
-  async getSession() {
-    return await getCurrentSessionApi();
-  },
+  getAuthStatus: () => getAuthStatusApi(),
+  bootstrapOwner: (payload) => bootstrapOwnerApi(payload),
+  login: (payload) => loginApi(payload),
+  getSession: () => getCurrentSessionApi(),
+  getProfile: () => getProfileApi(),
+  updateProfile: (payload) => updateProfileApi(payload),
+  uploadAvatar: (file) => uploadAvatarApi(file),
+  deleteAvatar: () => deleteAvatarApi(),
+  changePassword: (payload) => changePasswordApi(payload),
+  getAuthSessions: () => getAuthSessionsApi(),
+  revokeAuthSession: (sessionId) => revokeAuthSessionApi(sessionId),
+  exportUserData: () => exportUserDataApi(),
+  getExportStatus: (exportId) => getExportStatusApi(exportId),
+  getExportDownloadUrl: (exportId) => getExportDownloadUrl(exportId),
+  deleteUserAccount: () => deleteUserAccountApi(),
+  logoutOtherSessions: () => logoutOtherSessionsApi(),
+  logout: () => logoutApi(),
+  switchTenantSession: (tenantId) => switchTenantSessionApi(tenantId),
+  getGoogleAppAuthorizeUrl: () => getGoogleAppAuthorizeUrl(),
 };

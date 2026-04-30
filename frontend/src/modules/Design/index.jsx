@@ -7,7 +7,7 @@ import { Download, Check, X, Box } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
-import { uploadMediaFileApi } from '../../services/backendApi';
+import { MediaService } from '../../services/media.service';
 
 const Excalidraw = lazy(() => import('@excalidraw/excalidraw').then(mod => ({ default: mod.Excalidraw })));
 
@@ -139,7 +139,7 @@ const DesignModule = () => {
           URL.revokeObjectURL(url);
         } else if (out.type === 'vault') {
           const file = new File([out.blob], out.name, { type: out.blob.type });
-          await uploadMediaFileApi(file, out.tags);
+          await MediaService.uploadMediaFile(file, out.tags);
         }
       }
 

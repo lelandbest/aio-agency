@@ -36,34 +36,9 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { SPECIALIST_REGISTRY, VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
-import {
-  advanceThreadStageApi,
-  assignThreadApi,
-  createThreadReportApi,
-  createDealFromThreadApi,
-  createMailboxApi,
-  createThreadApi,
-  draftAiApi,
-  deleteThreadApi,
-  getMailboxAuthorizeUrl,
-  getCommsSnapshotApi,
-  getMailboxEventsApi,
-  getMailboxProvidersApi,
-  ingestMailboxMessageApi,
-  openThreadForContactApi,
-  pushCalendarEventApi,
-  reconcileCalendarEventApi,
-  runAiCommandApi,
-  sendThreadEmailApi,
-  sendThreadMessageApi,
-  scheduleThreadMeetingApi,
-  syncMailboxApi,
-  testMailboxConnectionApi,
-  updateCalendarEventApi,
-  updateMailboxApi,
-  updateThreadMailboxApi,
-  updateThreadStatusApi
-} from '../../services/backendApi';
+import { CommsService } from '../../services/comms.service';
+import { AiService } from '../../services/ai.service';
+import { CalendarService } from '../../services/calendar.service';
 import { subscribe } from '../../services/eventBus';
 import { openOAuthPopup } from '../../utils/oauthPopup';
 
@@ -584,7 +559,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
   const refresh = async () => {
     try {
-      const backendSnapshot = await getCommsSnapshotApi();
+      const backendSnapshot = await CommsService.getCommsSnapshot();
       setSnapshot({
         ...backendSnapshot,
         threads: backendSnapshot.threads || backendSnapshot.allThreads || [],
@@ -615,7 +590,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     let cancelled = false;
     (async () => {
       try {
-        const providers = await getMailboxProvidersApi();
+        const providers = await CommsService.getMailboxProviders();
         if (!cancelled && providers?.length) {
           setMailboxProviders(providers);
         }
@@ -790,7 +765,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     let cancelled = false;
     (async () => {
       try {
-        const events = await getMailboxEventsApi(mailbox.id);
+        const events = await CommsService.getMailboxEvents(mailbox.id);
         if (!cancelled) {
           setMailboxEvents(events || []);
         }
@@ -827,7 +802,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
     if (isCommand) {
       await runAction('Command', async () => {
-        const res = await runAiCommandApi({
+        const res = await AiService.runAiCommand({
           command: text.replace(/^[\/!]/, ''),
           agent: 'CHARLIE',
           intent: 'command',
@@ -852,14 +827,14 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       };
 
       if (composerChannel === 'email') {
-        await sendThreadEmailApi(selectedThread.id, {
+        await CommsService.sendThreadEmail(selectedThread.id, {
           ...payload,
           mailboxId: selectedThread.mailboxId,
           senderEmail: 'mission@aiocrm.local',
           recipients: [selectedThread.contact?.email].filter(Boolean)
         });
       } else {
-        await sendThreadMessageApi(selectedThread.id, { 
+        await CommsService.sendThreadMessage(selectedThread.id, { 
           ...payload,
           channelType: composerChannel 
         });
@@ -879,7 +854,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         if (!subject) return;
         await runAction('Creating', async () => {
           const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
-          const thread = await createThreadApi({ subject, channelType: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailboxId: mailboxId });
+          const thread = await CommsService.createThread({ subject, channelType: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailboxId: mailboxId });
           setSelectedThreadId(thread?.id || null);
         });
       }
@@ -894,7 +869,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleSubmitMailboxDraft = async () => {
     if (!mailboxDraft.name.trim() || !mailboxDraft.address.trim()) return;
     await runAction('Creating mailbox', async () => {
-      const mailbox = await createMailboxApi({
+      const mailbox = await CommsService.createMailbox({
         ...mailboxDraft,
         name: mailboxDraft.name.trim(),
         address: mailboxDraft.address.trim()
@@ -912,7 +887,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       const field = mode === 'summarize' ? 'summary' : mode;
       const latestMessage = selectedThread.messages?.[selectedThread.messages.length - 1] || null;
       const shouldOverrideAgent = ['reply', 'rewrite', 'draft-reply', 'rewrite-draft'].includes(String(field || '').toLowerCase());
-      const response = await draftAiApi({
+      const response = await AiService.draftAi({
         module: 'comms',
         surface: 'thread',
         field,
@@ -957,7 +932,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleWorkflowNote = async () => {
     if (!selectedThread) return;
     await runAction('Workflow', async () => {
-      await sendThreadMessageApi(selectedThread.id, { body: 'Workflow suggested: create follow-up task, refresh CRM brief, and offer a booking link.', channelType: 'internal', senderName: 'ALPHA', senderEmail: 'system@aiocrm.local', recipients: ['Internal'], direction: 'system' });
+      await CommsService.sendThreadMessage(selectedThread.id, { body: 'Workflow suggested: create follow-up task, refresh CRM brief, and offer a booking link.', channelType: 'internal', senderName: 'ALPHA', senderEmail: 'system@aiocrm.local', recipients: ['Internal'], direction: 'system' });
     });
   };
 
@@ -965,7 +940,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedMailbox?.id) return;
     await runAction('Saving mailbox', async () => {
       try {
-        await updateMailboxApi(selectedMailbox.id, mailboxForm);
+        await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
       } catch (error) {
         throw error;
       }
@@ -975,8 +950,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleTestMailbox = async () => {
     if (!selectedMailbox?.id) return;
     await runAction('Testing mailbox', async () => {
-      await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      const result = await testMailboxConnectionApi(selectedMailbox.id);
+      await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
+      const result = await CommsService.testMailboxConnection(selectedMailbox.id);
       setMailboxTestResult(result.result || null);
       showNotice({
         tone: result.result?.status === 'ok' ? 'success' : 'warning',
@@ -988,8 +963,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleAuthorizeMailbox = async () => {
     if (!selectedMailbox?.id || !isMailboxOauthProvider(mailboxForm.provider)) return;
     await runAction('Connecting mailbox', async () => {
-      await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      const result = await openOAuthPopup(getMailboxAuthorizeUrl(selectedMailbox.id), 'mailbox');
+      await CommsService.updateMailbox(selectedMailbox.id, mailboxForm);
+      const result = await openOAuthPopup(CommsService.getMailboxAuthorizeUrl(selectedMailbox.id), 'mailbox');
       setMailboxTestResult({ status: 'ok', message: `${selectedProvider.label} connected successfully.` });
       showNotice({
         tone: 'success',
@@ -1003,7 +978,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id || !activeMailbox?.id || selectedThread.mailboxId === activeMailbox.id) return;
     await runAction('Moving thread', async () => {
       try {
-        await updateThreadMailboxApi(selectedThread.id, activeMailbox.id);
+        await CommsService.updateThreadMailbox(selectedThread.id, activeMailbox.id);
       } catch (error) {
         throw error;
       }
@@ -1013,7 +988,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleCreateDeal = async () => {
     if (!selectedThread?.id) return;
     await runAction('Creating deal', async () => {
-      await createDealFromThreadApi(selectedThread.id);
+      await CommsService.createDealFromThread(selectedThread.id);
       showNotice({ tone: 'success', message: 'Deal shell created from the active thread.' });
     });
   };
@@ -1021,7 +996,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleAdvanceStage = async () => {
     if (!selectedThread?.id) return;
     await runAction('Advancing stage', async () => {
-      await advanceThreadStageApi(selectedThread.id);
+      await CommsService.advanceThreadStage(selectedThread.id);
       showNotice({ tone: 'success', message: 'Pipelines stage advanced from Comms.' });
     });
   };
@@ -1029,7 +1004,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleScheduleMeeting = async () => {
     if (!selectedThread?.id) return;
     await runAction('Scheduling meeting', async () => {
-      await scheduleThreadMeetingApi(selectedThread.id);
+      await CommsService.scheduleThreadMeeting(selectedThread.id);
       showNotice({ tone: 'success', message: 'Meeting follow-up scheduled from the active thread.' });
     });
   };
@@ -1037,7 +1012,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     const label = kind === 'executive' ? 'Creating executive report' : 'Creating operator report';
     await runAction(label, async () => {
-      await createThreadReportApi(selectedThread.id, kind);
+      await CommsService.createThreadReport(selectedThread.id, kind);
       showNotice({
         tone: 'success',
         message: kind === 'executive' ? 'Executive report artifact created.' : 'Operator report artifact created.'
@@ -1069,14 +1044,14 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleArchiveThread = async () => {
     if (!selectedThread?.id) return;
     await runAction('Archiving thread', async () => {
-      await updateThreadStatusApi(selectedThread.id, 'archived');
+      await CommsService.updateThreadStatus(selectedThread.id, 'archived');
       showNotice({ tone: 'success', message: 'Thread archived from active queues.' });
     });
   };
   const handleDeleteThread = async () => {
     if (!selectedThread?.id) return;
     await runAction('Deleting thread', async () => {
-      await deleteThreadApi(selectedThread.id);
+      await CommsService.deleteThread(selectedThread.id);
       showNotice({ tone: 'warning', message: 'Thread deleted from Comms. Mailbox-side deletion is still separate.' });
     });
   };
@@ -1086,26 +1061,26 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       return;
     }
     await runAction('Assigning', async () => {
-      await assignThreadApi(selectedThread.id, assigneeName);
+      await CommsService.assignThread(selectedThread.id, assigneeName);
       showNotice({ tone: 'success', message: `Thread assigned to ${assigneeName}.` });
       setIsAssigneeMenuOpen(false);
     });
   };
   const handleUpdateCalendarArtifact = async (eventId, updates, label, successMessage) => {
     await runAction(label, async () => {
-      await updateCalendarEventApi(eventId, updates);
+      await CalendarService.updateCalendarEvent(eventId, updates);
       showNotice({ tone: 'success', message: successMessage });
     });
   };
   const handlePushCalendarArtifact = async (eventId) => {
     await runAction('Pushing meeting', async () => {
-      await pushCalendarEventApi(eventId);
+      await CalendarService.pushCalendarEvent(eventId);
       showNotice({ tone: 'success', message: 'Meeting pushed to the active calendar source.' });
     });
   };
   const handleReconcileCalendarArtifact = async (eventId, strategy) => {
     await runAction('Reconciling meeting', async () => {
-      const response = await reconcileCalendarEventApi(eventId, strategy);
+      const response = await CalendarService.reconcileCalendarEvent(eventId, strategy);
       showNotice({ tone: 'success', message: response?.result?.message || 'Meeting conflict reconciled.' });
     });
   };
@@ -1290,7 +1265,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     </button>
   );
   const primaryHeaderActions = [
-    { label: 'Sync Mailbox', icon: RefreshCw, onClick: () => syncMailboxApi(selectedMailbox?.id), variant: 'secondary' },
+    { label: 'Sync Mailbox', icon: RefreshCw, onClick: () => CommsService.syncMailbox(selectedMailbox?.id), variant: 'secondary' },
     { label: 'Insights', icon: Brain, onClick: () => setIsInsightsModalOpen(true), variant: 'secondary' },
     { label: 'Canned', icon: MessageSquare, onClick: () => setIsCannedModalOpen(true), variant: 'secondary', groupStart: true },
   ];
@@ -1995,7 +1970,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         </div>
                         <div className="grid gap-2 sm:grid-cols-3">
                           <button onClick={handleArchiveThread} disabled={selectedThread.status === 'archived'} className={`px-3 py-2.5 ${COMMS_ACTION_TILE}`}>Archive</button>
-                          <button onClick={() => runAction('Closing', async () => { await updateThreadStatusApi(selectedThread.id, 'closed'); })} disabled={selectedThread.status === 'closed'} className={`px-3 py-2.5 ${COMMS_ACTION_TILE}`}>Close</button>
+                          <button onClick={() => runAction('Closing', async () => { await CommsService.updateThreadStatus(selectedThread.id, 'closed'); })} disabled={selectedThread.status === 'closed'} className={`px-3 py-2.5 ${COMMS_ACTION_TILE}`}>Close</button>
                           <button onClick={handleDeleteThread} className="px-3 py-3 rounded-[var(--radius-panel)] border border-red-500/30 text-left text-sm text-red-200 hover:border-red-400/50">Delete CRM</button>
                         </div>
                         <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>

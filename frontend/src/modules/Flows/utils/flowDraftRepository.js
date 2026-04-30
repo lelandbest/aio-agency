@@ -3,14 +3,14 @@
  * Drafts are persisted via backend APIs and loaded into Flow Builder.
  */
 
-import { deleteFlowDraftApi, getFlowDraftApi, saveFlowDraftApi } from '../../../services/backendApi';
+import { FlowsService } from '../../../services/flows.service';
 import { createNode } from '../data/nodeLibrary';
 import { generateULID } from './ulid';
 
 let activeDraftId = null;
 
 const saveDraft = async (draft) => {
-  return saveFlowDraftApi(draft);
+  return FlowsService.saveFlowDraft(draft);
 };
 
 export const setActiveDraft = (draftId) => {
@@ -19,14 +19,14 @@ export const setActiveDraft = (draftId) => {
 
 export const getActiveDraft = async () => {
   if (!activeDraftId) return null;
-  return getFlowDraftApi(activeDraftId);
+  return FlowsService.getFlowDraft(activeDraftId);
 };
 
 export const clearActiveDraft = async () => {
   if (!activeDraftId) return;
   const draftId = activeDraftId;
   activeDraftId = null;
-  await deleteFlowDraftApi(draftId);
+  await FlowsService.deleteFlowDraft(draftId);
 };
 
 export const createDraftFromAgent = async (agent, intent = 'Draft a workflow from agent intent.') => {

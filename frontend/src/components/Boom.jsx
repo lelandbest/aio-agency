@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { 
   X, Camera, Monitor, Mic 
 } from 'lucide-react';
-import { createMediaTranscriptJobApi } from '../services/backendApi';
+import { MediaService } from '../services/media.service';
 
 export default function Boom({ isOpen, onClose }) {
   if (!isOpen) return null;
@@ -261,27 +261,13 @@ export default function Boom({ isOpen, onClose }) {
     try {
       const file = new File([boomCurrentSegment], `boom-${Date.now()}.webm`, { type: 'video/webm' });
       
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('tags', 'BOOM');
-      
-      const { request } = await import('../services/backendApi');
-      const response = await request('/api/media/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const result = response?.data ? 
-        Object.keys(response.data).reduce((acc, key) => {
-          const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          acc[camelKey] = response.data[key];
-          return acc;
-        }, {}) : null;
+      const result = await MediaService.uploadMediaFile(file, 'BOOM');
       
       console.log('Boom saved to vault:', result);
       
       if (boomAutoTranscribe && result?.assetId) {
         try {
-          const transcriptResult = await createMediaTranscriptJobApi({
+          const transcriptResult = await MediaService.createMediaTranscriptJob({
             assetId: result.assetId,
             source: 'BOOM',
           });

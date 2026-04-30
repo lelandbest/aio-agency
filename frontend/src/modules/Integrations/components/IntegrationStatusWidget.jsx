@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import {
-  getAutomationProviderConfigsApi,
-  getAiProviderConfigsApi,
-  getCalendarSourcesApi,
-  getMailboxesApi,
-  getPaymentProviderConfigsApi,
-} from '../../../services/backendApi';
+import { AiService } from '../../../services/ai.service';
+import { CalendarService } from '../../../services/calendar.service';
+import { CommsService } from '../../../services/comms.service';
+import { IntegrationsService } from '../../../services/integrations.service';
 
 /**
  * IntegrationStatusWidget Component
@@ -22,11 +19,11 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
       try {
         setLoading(true);
         const [automation, aiProviders, calendarSources, mailboxes, payments] = await Promise.all([
-          getAutomationProviderConfigsApi().catch(() => []),
-          getAiProviderConfigsApi().catch(() => []),
-          getCalendarSourcesApi().catch(() => []),
-          getMailboxesApi().catch(() => []),
-          getPaymentProviderConfigsApi().catch(() => []),
+          IntegrationsService.getAutomationProviderConfigs().catch(() => []),
+          AiService.getAiProviderConfigs().catch(() => []),
+          CalendarService.getCalendarSources().catch(() => []),
+          CommsService.getMailboxes().catch(() => []),
+          IntegrationsService.getPaymentProviderConfigs().catch(() => []),
         ]);
 
         if (cancelled) {
