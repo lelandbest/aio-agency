@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { sanitizeConsultError } from '../../utils/consult.utils';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield, Brain, Headset } from 'lucide-react';
 import { AiService } from '../../services/ai.service';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -7,7 +8,7 @@ import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/ic
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
-
+import { validateAndSanitizeMessage } from '../../utils/sessionValidator';
 
 const AGENT_CHAT_STORAGE_KEY = 'aio-agents-chat-session';
 const AGENT_SELECTED_FLOW_STORAGE_KEY = 'aio-agents-selected-flow';
@@ -69,7 +70,9 @@ const formatStructuredResponse = (value) => {
       .map((item) => formatStructuredResponse(item))
       .filter(Boolean);
     return items
-      .map((item) => (item.includes('\n') ? `- ${item.replace(/\n/g, '\n  ')}` : `- ${item}`))
+      .map((item) => {
+        return ((String(item || '')).includes('\n') ? `- ${String(item || '').replace(/\n/g, '\n  ')}` : `- ${item}`);
+      })
       .join('\n');
   }
   if (typeof value === 'object') {
@@ -85,7 +88,7 @@ const formatStructuredResponse = (value) => {
         if (!formatted) {
           return '';
         }
-        return formatted.includes('\n')
+        return (formatted || '').includes('\n')
           ? `${formatResponseKey(key)}:\n${indentLines(formatted)}`
           : `${formatResponseKey(key)}: ${formatted}`;
       })
@@ -479,8 +482,10 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
   role: 'assistant',
   runId: run?.id,
   content: run?.output || '',
+  output: { format: 'md', content: run?.output || '' },
+  intro: { enabled: false, message: '' },
   timestamp: formatRunTimestamp(run?.updatedAt || run?.createdAt),
-  rank: run?.executingAgent || run?.agentRole || 'CHARLIE',
+  rank: run?.executingAgent || run?.agentRole || run?.requestedAgent || '',
   chain: normalizeDelegateChain(run?.delegateChain),
   status: formatRunStatus(run?.status),
   error: run?.error || null,
@@ -499,9 +504,99 @@ const AIOAgentsModule = () => {
   } = useAIAssist();
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: `${resolveAgentName(activeAgent?.registryKey || activeAgent?.name || 'CHARLIE')} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
-  ]);
+  const [convoMessages, setConvoMessages] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('aio_convo_messages')) || []; } catch { return []; }
+  });
+  const [commandLog, setCommandLog] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('aio_command_log')) || []; } catch { return []; }
+  });
+  const [consultSessions, setConsultSessions] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('aio_consult_sessions')) || {}; } catch { return {}; }
+  });
+
+  const [selectedAgent, setSelectedAgent] = useState(() => localStorage.getItem('aio_selected_agent') || null);
+  const [selectionMode, setSelectionMode] = useState('talk'); 
+  const [collabAgents, setCollabAgents] = useState(() => {
+    try {
+      const stored = localStorage.getItem('aio_collab_agents');
+      return (stored && stored !== 'null') ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  const activeAgentKey = selectedAgent || activeAgent?.registryKey || null;
+  const isActiveConsult = Boolean(activeAgentKey) && activeAgentKey !== 'CHARLIE';
+  const activeSessionType = isActiveConsult ? 'CONSULT' : 'CONVO';
+
+  const [sessionIdentity, setSessionIdentity] = useState({
+    sessionId: `sess-${Date.now()}`,
+    snapshotVersion: 1,
+    agentKey: activeAgentKey,
+    sessionType: activeSessionType
+  });
+
+  useEffect(() => {
+    setSessionIdentity(prev => {
+      if (prev.agentKey === activeAgentKey) return prev;
+      
+      const newSessionId = `sess-${Date.now()}`;
+      const newSnapshotVersion = prev.snapshotVersion + 1;
+      
+      if (activeAgentKey && activeAgentKey !== 'CHARLIE') {
+          const introMsg = validateAndSanitizeMessage({
+              role: 'assistant',
+              content: `${resolveAgentName(activeAgentKey)} Activated! ${pickSalutation()}`,
+              timestamp: 'Now',
+              sessionType: 'CONSULT',
+              internalTs: Date.now(),
+              sessionId: newSessionId,
+              snapshotVersion: newSnapshotVersion,
+              rank: activeAgentKey,
+              intro: { enabled: true, message: `${resolveAgentName(activeAgentKey)} Activated! ${pickSalutation()}` }
+          });
+          
+          if (introMsg) {
+              setConsultSessions(sessions => {
+                  if ((sessions[activeAgentKey] || []).length === 0) {
+                      return { ...sessions, [activeAgentKey]: [introMsg] };
+                  }
+                  return sessions;
+              });
+          }
+      }
+
+      return {
+        sessionId: newSessionId,
+        snapshotVersion: newSnapshotVersion,
+        agentKey: activeAgentKey,
+        sessionType: activeSessionType
+      };
+    });
+  }, [activeAgentKey, activeSessionType]);
+  
+  // Create a merged view for Charlie that interleaves CONVO and COMMAND, and isolated views for CONSULT
+  const messages = isActiveConsult 
+    ? (consultSessions[activeAgentKey] || []) 
+    : [...convoMessages, ...commandLog].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
+
+  const setMessages = (updater) => {
+    if (isActiveConsult) {
+      setConsultSessions(prev => {
+        const prevSession = prev[activeAgentKey] || [];
+        return { ...prev, [activeAgentKey]: typeof updater === 'function' ? updater(prevSession) : updater };
+      });
+    } else {
+      setConvoMessages(prevConvo => {
+        const prevMerged = [...prevConvo, ...commandLog].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
+        const rawNext = typeof updater === 'function' ? updater(prevMerged) : updater;
+        return rawNext.filter(m => m.sessionType !== 'COMMAND');
+      });
+      setCommandLog(prevCommand => {
+        const prevMerged = [...convoMessages, ...prevCommand].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
+        const rawNext = typeof updater === 'function' ? updater(prevMerged) : updater;
+        return rawNext.filter(m => m.sessionType === 'COMMAND');
+      });
+    }
+  };
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
   const [activeRun, setActiveRun] = useState(null);
@@ -535,7 +630,8 @@ const AIOAgentsModule = () => {
         const run = hydrateActiveRun(await AiService.getAiRun(runId));
         setActiveRun(run);
         const status = (run?.status || '').toLowerCase();
-        if (['completed', 'failed', 'success'].includes(status)) {
+        const status_check_array = ['completed', 'failed', 'success'];
+        if (status_check_array.includes(status)) {
           stopRunPolling();
         }
       } catch {
@@ -549,13 +645,6 @@ const AIOAgentsModule = () => {
   const [copiedToken, setCopiedToken] = useState('');
   const [localAttachments, setLocalAttachments] = useState([]);
   const [selectedFlow, setSelectedFlow] = useState(null);
-  const [selectedAgent, setSelectedAgent] = useState(() => localStorage.getItem('aio_selected_agent') || null);
-  const [selectionMode, setSelectionMode] = useState('talk'); 
-  const [collabAgents, setCollabAgents] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('aio_collab_agents') || '[]');
-    } catch { return []; }
-  });
 
   useEffect(() => {
     localStorage.setItem('aio_collab_agents', JSON.stringify(collabAgents));
@@ -585,7 +674,7 @@ const AIOAgentsModule = () => {
       .catch(() => setAgents([]));
     AiService.getAiRuns(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
-      .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
+      .catch((error) => setAiRunsError(sanitizeConsultError(error) || 'Unable to load AI activity.'));
   }, []);
 
   useEffect(() => {
@@ -608,11 +697,24 @@ const AIOAgentsModule = () => {
 
   useEffect(() => {
     try {
-      const storedMessages = localStorage.getItem(AGENT_CHAT_STORAGE_KEY);
-      if (!storedMessages) return;
-      const parsed = JSON.parse(storedMessages);
-      if (Array.isArray(parsed)) {
-        setMessages(parsed);
+      const storedConvo = localStorage.getItem('aio_convo_messages');
+      if (storedConvo) {
+         const parsed = JSON.parse(storedConvo);
+         setConvoMessages(parsed.map(m => validateAndSanitizeMessage(m)).filter(Boolean));
+      }
+      const storedCmd = localStorage.getItem('aio_command_log');
+      if (storedCmd) {
+         const parsed = JSON.parse(storedCmd);
+         setCommandLog(parsed.map(m => validateAndSanitizeMessage(m)).filter(Boolean));
+      }
+      const storedConsult = localStorage.getItem('aio_consult_sessions');
+      if (storedConsult) {
+         const parsed = JSON.parse(storedConsult);
+         const hydrated = {};
+         for (const key of Object.keys(parsed)) {
+            hydrated[key] = (parsed[key] || []).map(m => validateAndSanitizeMessage(m)).filter(Boolean);
+         }
+         setConsultSessions(hydrated);
       }
     } catch { }
   }, []);
@@ -638,9 +740,11 @@ const AIOAgentsModule = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem(AGENT_CHAT_STORAGE_KEY, JSON.stringify(messages));
+      localStorage.setItem('aio_convo_messages', JSON.stringify(convoMessages));
+      localStorage.setItem('aio_command_log', JSON.stringify(commandLog));
+      localStorage.setItem('aio_consult_sessions', JSON.stringify(consultSessions));
     } catch { }
-  }, [messages]);
+  }, [convoMessages, commandLog, consultSessions]);
 
   useEffect(() => {
     if (!copiedToken) return;
@@ -696,6 +800,9 @@ const AIOAgentsModule = () => {
     if (message?.pending) {
       return '';
     }
+    if (message?.sessionType === 'CONSULT' && message?.output) {
+      return message.output.content || '';
+    }
     return message?.content || '';
   };
 
@@ -729,12 +836,19 @@ const AIOAgentsModule = () => {
   };
 
   const handleClearChat = () => {
-    setMessages([]);
+    if (isActiveConsult) {
+      setConsultSessions(prev => ({ ...prev, [activeAgentKey]: [] }));
+    } else {
+      setConvoMessages([]);
+      setCommandLog([]);
+    }
     setActiveRun(null);
     setChatInput('');
     setLocalAttachments([]);
     try {
-      localStorage.removeItem(AGENT_CHAT_STORAGE_KEY);
+      localStorage.removeItem('aio_convo_messages');
+      localStorage.removeItem('aio_command_log');
+      localStorage.removeItem('aio_consult_sessions');
     } catch { }
   };
 
@@ -751,45 +865,75 @@ const AIOAgentsModule = () => {
     const nextMessage = `${attachmentPrefix}${chatInput.trim()}`;
     const pendingMessageId = `pending-${Date.now()}`;
     setActiveRun(null);
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: nextMessage, timestamp: 'Now' },
-      {
+    // COMMAND INTERCEPTION: Enforce Charlie-only command authority
+    const COMMAND_REGEX = /^(open|run|create|summarize|start|stop|search|transcribe|test)\b/i;
+    const isCommand = nextMessage.startsWith('/') || nextMessage.startsWith('!') || COMMAND_REGEX.test(nextMessage);
+    const resolvedAgent = isCommand ? 'CHARLIE' : (selectedAgent || activeAgent?.registryKey || null);
+    const isConsult = Boolean(resolvedAgent) && resolvedAgent !== 'CHARLIE';
+    const currentSessionType = isConsult ? 'CONSULT' : (isCommand ? 'COMMAND' : 'CONVO');
+
+    const requestSnapshotVersion = sessionIdentity.snapshotVersion;
+    const requestSessionId = sessionIdentity.sessionId;
+
+    const userMsg = validateAndSanitizeMessage({ 
+      role: 'user', 
+      content: nextMessage, 
+      timestamp: 'Now', 
+      sessionType: currentSessionType, 
+      internalTs: Date.now(), 
+      sessionId: requestSessionId, 
+      snapshotVersion: requestSnapshotVersion 
+    }, sessionIdentity);
+    
+    const pendingMsg = validateAndSanitizeMessage({
         clientId: pendingMessageId,
         role: 'assistant',
         content: 'Awaiting response transmission...',
+        output: { format: 'md', content: 'Awaiting response transmission...' },
         timestamp: 'PENDING',
-        rank: selectedAgent || activeAgent?.registryKey || 'CHARLIE',
+        rank: resolvedAgent,
         chain: '',
         status: 'PENDING',
         error: null,
         pending: true,
-      }
-    ]);
+        sessionType: currentSessionType,
+        internalTs: Date.now() + 1,
+        sessionId: requestSessionId,
+        snapshotVersion: requestSnapshotVersion
+    }, sessionIdentity);
+
+    if (userMsg && pendingMsg) {
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+    }
     setChatInput('');
     setLocalAttachments([]);
-    // COMMAND INTERCEPTION: Enforce Charlie-only command authority
-    const COMMAND_REGEX = /^(open|run|create|summarize|start|stop|search|transcribe|test)\b/i;
-    const isCommand = nextMessage.startsWith('/') || nextMessage.startsWith('!') || COMMAND_REGEX.test(nextMessage);
 
     try {
       const response = await AiService.runAiCommand({
         command: isCommand ? nextMessage.replace(/^[\/!]/, '') : nextMessage,
-        agent: isCommand ? 'CHARLIE' : (selectedAgent || 'CHARLIE'),
+        agent: resolvedAgent,
+        sessionType: currentSessionType,
         intent: isCommand ? 'command' : 'conversation',
-        ...(collabAgents.length ? { collabAgents } : {}),
+        ...((collabAgents || []).length ? { collabAgents } : {}),
         ...(selectedFlow ? { flowId: selectedFlow.id } : {}),
         context: {
           module: 'agents',
           surface: 'command',
           intent: isCommand ? 'command' : 'conversation',
-          requestedAgent: isCommand ? 'CHARLIE' : (selectedAgent || 'CHARLIE'),
-          activeAgent: isCommand ? 'CHARLIE' : (selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || 'CHARLIE'),
+          requestedAgent: isCommand ? 'CHARLIE' : (selectedAgent || ''),
+          activeAgent: isCommand ? 'CHARLIE' : (selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || ''),
           collabAgents: collabAgents,
           flowId: selectedFlow?.id || null,
           flowName: selectedFlow?.name || null,
         }
       });
+      
+      // Async Response Guard: Verify session hasn't drifted during network request
+      // We must use a callback in setMessages to access the latest state, but wait,
+      // sessionIdentity is available via closure but it might be stale.
+      // However, if we pass the message with its requestSnapshotVersion, 
+      // the validateAndSanitizeMessage inside setMessages will drop it automatically!
+      
       const runId = response?.runId || response?.run?.id || '';
       if (runId) {
         setMessages((prev) =>
@@ -802,75 +946,93 @@ const AIOAgentsModule = () => {
         try {
           const run = hydrateActiveRun(await AiService.getAiRun(runId));
           setActiveRun(run);
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.clientId === pendingMessageId
-                ? buildAssistantMessageFromRun(run, { clientId: pendingMessageId })
-                : msg
-            )
-          );
+          const finalMsg = validateAndSanitizeMessage(buildAssistantMessageFromRun(run, { 
+            clientId: pendingMessageId, 
+            sessionType: currentSessionType, 
+            sessionId: requestSessionId, 
+            snapshotVersion: requestSnapshotVersion
+          }), sessionIdentity);
+          if (finalMsg) {
+            setMessages((prev) =>
+              prev.map((msg) => msg.clientId === pendingMessageId ? finalMsg : msg)
+            );
+          }
           const status = (run?.status || '').toLowerCase();
-          if (!['completed', 'failed', 'success'].includes(status)) {
+          const status_check_array_2 = ['completed', 'failed', 'success'];
+          if (!status_check_array_2.includes(status)) {
             startRunPolling(runId);
           }
         } catch (error) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.clientId === pendingMessageId
-                ? {
-                  ...msg,
-                  content: 'Run failed to load. Please retry.',
-                  timestamp: 'Now',
-                  rank: 'SYSTEM',
-                  chain: '',
-                  status: 'ERROR',
-                  error: error.message || 'Run failed to load. Please retry.',
-                  pending: false,
-                  runId: undefined,
-                }
-                : msg
-            )
-          );
+          const errorMsg = validateAndSanitizeMessage({
+            clientId: pendingMessageId,
+            role: 'assistant',
+            content: 'Run failed to load. Please retry.',
+            output: { format: 'txt', content: 'Run failed to load. Please retry.' },
+            timestamp: 'Now',
+            rank: 'SYSTEM',
+            chain: '',
+            status: 'ERROR',
+            error: sanitizeConsultError(error) || 'Run failed to load. Please retry.',
+            pending: false,
+            runId: undefined,
+            sessionId: requestSessionId,
+            snapshotVersion: requestSnapshotVersion,
+            sessionType: currentSessionType
+          }, sessionIdentity);
+          if (errorMsg) {
+            setMessages((prev) =>
+              prev.map((msg) => msg.clientId === pendingMessageId ? errorMsg : msg)
+            );
+          }
         }
       } else {
         const immediateText = response?.message || response?.response?.answer || response?.response?.message || '';
         const orchestration = response?.result?.orchestration || response?.orchestration;
         
         if (immediateText) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.clientId === pendingMessageId
-                ? {
-                  ...msg,
-                  content: immediateText,
-                  timestamp: 'Now',
-                  rank: orchestration?.target || selectedAgent || activeAgent?.registryKey || 'CHARLIE',
-                  chain: orchestration?.chain?.join(' -> ') || '',
-                  status: 'COMPLETED',
-                  error: null,
-                  pending: false,
-                  runId: undefined,
-                }
-                : msg
-            )
-          );
+          const directMsg = validateAndSanitizeMessage({
+            clientId: pendingMessageId,
+            role: 'assistant',
+            content: immediateText,
+            output: { format: 'md', content: immediateText },
+            timestamp: 'Now',
+            rank: orchestration?.target || resolvedAgent || '',
+            chain: orchestration?.chain?.join(' -> ') || '',
+            status: 'COMPLETED',
+            error: null,
+            pending: false,
+            runId: undefined,
+            sessionId: requestSessionId,
+            snapshotVersion: requestSnapshotVersion,
+            sessionType: currentSessionType
+          }, sessionIdentity);
+          if (directMsg) {
+            setMessages((prev) =>
+              prev.map((msg) => msg.clientId === pendingMessageId ? directMsg : msg)
+            );
+          }
         } else {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.clientId === pendingMessageId
-                ? {
-                  ...msg,
-                  content: 'Canonical run was not returned. Please retry.',
-                  timestamp: 'Now',
-                  rank: 'SYSTEM',
-                  chain: '',
-                  status: 'ERROR',
-                  error: 'Canonical run was not returned. Please retry.',
-                  pending: false,
-                }
-                : msg
-            )
-          );
+          const noContentMsg = validateAndSanitizeMessage({
+            clientId: pendingMessageId,
+            role: 'assistant',
+            content: '',
+            output: { format: 'txt', content: '' },
+            timestamp: 'Now',
+            rank: orchestration?.target || resolvedAgent || '',
+            chain: orchestration?.chain?.join(' -> ') || '',
+            status: 'COMPLETED',
+            error: 'No valid output text could be derived from the orchestration response.',
+            pending: false,
+            runId: undefined,
+            sessionId: requestSessionId,
+            snapshotVersion: requestSnapshotVersion,
+            sessionType: currentSessionType
+          }, sessionIdentity);
+          if (noContentMsg) {
+            setMessages((prev) =>
+              prev.map((msg) => msg.clientId === pendingMessageId ? noContentMsg : msg)
+            );
+          }
         }
       }
       const latestRuns = await AiService.getAiRuns(12);
@@ -884,14 +1046,18 @@ const AIOAgentsModule = () => {
           msg.clientId === pendingMessageId
             ? {
                 ...msg,
-                content: error.message || 'Unable to reach high-command.',
+                content: sanitizeConsultError(error) || 'Unable to reach high-command.',
+                output: { format: 'txt', content: sanitizeConsultError(error) || 'Unable to reach high-command.' },
+                intro: { enabled: isFirstConsultMessage, message: greetingText },
                 timestamp: 'Now',
                 rank: 'SYSTEM',
                 chain: '',
                 status: 'ERROR',
-                error: error.message || 'Unable to reach high-command.',
+                error: sanitizeConsultError(error) || 'Unable to reach high-command.',
                 pending: false,
                 runId: undefined,
+                sessionId: requestSessionId,
+                snapshotVersion: requestSnapshotVersion
               }
             : msg
         )
@@ -938,29 +1104,16 @@ const AIOAgentsModule = () => {
       return;
     }
     setCollabAgents((prev) => {
-      if (prev.includes(agentKey)) {
-        return prev.filter((key) => key !== agentKey);
+      const current = prev || [];
+      if (current.includes(agentKey)) {
+        return current.filter((key) => key !== agentKey);
       }
-      return [...prev, agentKey];
+      return [...current, agentKey];
     });
     setSelectedAgent(null);
   };
 
-  useEffect(() => {
-    if (!activeAgent) return;
-    const agentName = resolveAgentName(activeAgent.registryKey || activeAgent.name || 'CHARLIE');
-    const greeting = `${agentName} Activated! ${pickSalutation()}`;
-    setMessages(prev => {
-      const last = prev[prev.length - 1];
-      if (last?.role === 'assistant' && last?.content?.includes('Activated!')) {
-        if (last?.rank === activeAgent.registryKey || last?.rank === activeAgent.name) {
-          return prev;
-        }
-        return [...prev.slice(0, prev.length - 1), { role: 'assistant', content: greeting, rank: activeAgent.registryKey || activeAgent.name || 'CHARLIE', timestamp: formatRunTimestamp(new Date().toISOString()) }];
-      }
-      return [...prev, { role: 'assistant', content: greeting, rank: activeAgent.registryKey || activeAgent.name || 'CHARLIE', timestamp: formatRunTimestamp(new Date().toISOString()) }];
-    });
-  }, [activeAgent]);
+
 
   const handleSelectRun = async (runId, nextView = 'command') => {
     if (!runId) return;
@@ -1013,19 +1166,25 @@ const AIOAgentsModule = () => {
   );
   const mainAgentName = resolveAgentName(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const mainAgentId = resolveRuntimeAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
-  const activeAgentDisplayName = resolveAgentName(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
-  const activeAgentSkillset = resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE');
+  const activeAgentDisplayName = resolveAgentName(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey);
+  const activeAgentSkillset = resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const activeBotKey = selectionMode === 'collab' ? '' : (activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || '');
   const botEntitySummary = useMemo(
     () => (roleBundle?.entitySummaries || []).find((entity) => entity.entityType === 'bot' && entity.entityId === activeBotKey) || null,
     [roleBundle, activeBotKey, selectionMode]
   );
   const botAssignedRoles = useMemo(
-    () => (roleBundle?.roles || []).filter((role) => (botEntitySummary?.roleIds || []).includes(role.id)),
+    () => (roleBundle?.roles || []).filter((role) => {
+      const target = (botEntitySummary?.roleIds || []);
+      return target.includes(role.id);
+    }),
     [roleBundle, botEntitySummary]
   );
   const attachableBotRoles = useMemo(
-    () => (roleBundle?.roles || []).filter((role) => !(botEntitySummary?.roleIds || []).includes(role.id)),
+    () => (roleBundle?.roles || []).filter((role) => {
+      const target = (botEntitySummary?.roleIds || []);
+      return !target.includes(role.id);
+    }),
     [roleBundle, botEntitySummary]
   );
 
@@ -1079,9 +1238,9 @@ const AIOAgentsModule = () => {
     : selectedFlow
       ? `SYSTEM READY. FLOW ${selectedFlow.name.toUpperCase()} IS BOUND FOR EXECUTION. SUBMIT A COMMAND TO START A CANONICAL RUN.`
       : (selectedAgent && selectionMode !== 'collab')
-        ? `SYSTEM READY. TARGET ${mainAgentName} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.map(k => resolveAgentName(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
-        : collabAgents.length
-          ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentName(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
+        ? `SYSTEM READY. TARGET ${mainAgentName} IS SELECTED.${(collabAgents || []).length ? ` COLLAB: ${(collabAgents || []).map(k => resolveAgentName(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
+        : (collabAgents || []).length
+          ? `SYSTEM READY. COLLAB GROUP ${(collabAgents || []).map(k => resolveAgentName(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   useEffect(() => {
@@ -1380,7 +1539,7 @@ const AIOAgentsModule = () => {
               {/* LEFT - Command Islands */}
               <div className="flex-1 min-h-0 min-w-0 w-1/2 p-0 flex flex-col gap-6 overflow-hidden">
 
-                {/* ISLAND 1 — ALPHA */}
+                {/* ISLAND 1 â€” ALPHA */}
                 {alpha && (
                   <div
                     onClick={() => { setActiveAgent(alpha); setSelectedAgent('ALPHA'); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
@@ -1407,7 +1566,7 @@ const AIOAgentsModule = () => {
                       <div className="flex items-center justify-end gap-3 shrink-0">
                         <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
                           <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Routing</div>
-                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap">{selectedRoute?.source || 'USER'} → {activeRun?.intakeAgent || 'CHARLIE'}</div>
+                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap">{selectedRoute?.source || 'USER'} â†’ {activeRun?.intakeAgent || 'CHARLIE'}</div>
                         </div>
                         <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
                           <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Status</div>
@@ -1432,7 +1591,7 @@ const AIOAgentsModule = () => {
                         Specialist Arena: {regularAgents.length} Agents
                       </span>
                     </div>
-                    <span className="text-[8px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">3 × 4 Fixed Grid</span>
+                    <span className="text-[8px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">3 Ã— 4 Fixed Grid</span>
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-hidden">
@@ -1445,7 +1604,7 @@ const AIOAgentsModule = () => {
                         return (
                           <div
                             key={agentKey || agent.id || idx}
-                            onClick={() => { setActiveAgent(agent); setSelectedAgent(agentKey || 'CHARLIE'); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
+                            onClick={() => { setActiveAgent(agent); setSelectedAgent(agentKey || null); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
                             className="group bg-transparent border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                           >
                             <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
@@ -1482,7 +1641,7 @@ const AIOAgentsModule = () => {
                   </div>
                 </div>
 
-                {/* ISLAND 3 — OMEGA */}
+                {/* ISLAND 3 â€” OMEGA */}
                 <div className="relative rounded-[var(--radius-panel)] min-h-[128px] border border-red-500/40 bg-black overflow-hidden select-none shrink-0">
                   <div className="absolute inset-0 pointer-events-none" style={{
                     backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.02) 2px, rgba(255,0,0,0.02) 4px)',
@@ -1651,7 +1810,7 @@ const AIOAgentsModule = () => {
                   </div>
                 </div>
 
-                {/* BOTTOM: EXECUTION STREAM — LIVE OPERATIONS FLOOR */}
+                {/* BOTTOM: EXECUTION STREAM â€” LIVE OPERATIONS FLOOR */}
                 <div className="h-[58%] flex flex-col relative px-5 py-4 border border-white/10 rounded-[var(--radius-panel)] bg-black overflow-hidden group/ops">
                   <div className="relative z-20 flex items-center justify-between mb-1 shrink-0">
                     <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
@@ -1857,7 +2016,7 @@ const AIOAgentsModule = () => {
                         <span className={`px-2 py-0.5 border ${getAgentColor(activeBotKey).border} bg-[#000] text-[10px] font-bold uppercase rounded-full ${getAgentColor(activeBotKey).icon.split(' ')[0]}`}>
                           {sessionStatusLabel}
                         </span>
-                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE')}</span>
+                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey)}</span>
                         <span className="text-[9px] text-white/30 font-mono uppercase tracking-widest ml-1">{hasActiveRun ? activeRunTimestamp : '// SYSTEM WAITING'}</span>
                       </div>
                     </div>
@@ -1932,9 +2091,9 @@ const AIOAgentsModule = () => {
                             <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
                           </div>
 
-                          {collabAgents.length > 0 && (
+                          {(collabAgents || []).length > 0 && (
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {collabAgents.map(key => {
+                              {(collabAgents || []).map(key => {
                                 const colors = getAgentColor(key);
                                 return (
                                   <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
@@ -1948,7 +2107,7 @@ const AIOAgentsModule = () => {
                         </div>
                         <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
                           {hasActiveRun
-                            ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
+                            ? `Run ${activeRun.id} â€¢ ${activeRunStatus}${activeRunChain ? ` â€¢ ${activeRunChain}` : ''} â€¢ ${activeRunTimestamp}`
                             : 'System-level command interface'}
                         </p>
                         <p className="text-[10px] text-[var(--color-text-tertiary)] font-medium mt-1 uppercase tracking-widest">Command Stream</p>
@@ -1970,7 +2129,11 @@ const AIOAgentsModule = () => {
 
                     {/* Chat Feed */}
                     <div ref={chatFeedRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
-                      {messages.map((msg, i) => {
+                      {messages.filter(msg => {
+                        const msgSessionType = isActiveConsult ? 'CONSULT' : 'CONVO';
+                        if (msgSessionType === 'CONSULT') return msg.sessionType === 'CONSULT';
+                        return msg.sessionType === 'CONVO' || msg.sessionType === 'COMMAND' || !msg.sessionType;
+                      }).map((msg, i) => {
                         const preferredRun = resolveMessageRun(msg);
                         const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
                         const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
@@ -1980,7 +2143,7 @@ const AIOAgentsModule = () => {
                         const preferredError = preferredRun ? preferredRun.error : msg.error;
                         const messageToken = msg.runId || msg.clientId || `message-${i}`;
                         const supportsJsonDownload = Boolean(preferredRun) || looksLikeJson(preferredContent);
-                        const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || preferredContent.includes('```') || Boolean(preferredRun);
+                        const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || (preferredContent || '').includes('```') || Boolean(preferredRun);
                         const referenceTargets = extractLinkTargets(preferredContent);
                         const primaryReference = referenceTargets[0] || '';
                         return (
@@ -1992,7 +2155,7 @@ const AIOAgentsModule = () => {
                                 ) : (
                                   <div className="flex items-center gap-2">
                                     <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
-                                      {preferredRank || 'CHARLIE'}
+                                      {preferredRank || resolveAgentName(selectedAgent || activeAgent?.registryKey || '')}
                                     </span>
                                     {preferredChain ? (
                                       <div className="flex items-center gap-1 opacity-60">
@@ -2066,7 +2229,14 @@ const AIOAgentsModule = () => {
                                         <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.4s' }} />
                                       </div>
                                     ) : (
-                                      renderMarkdownContent(preferredContent)
+                                      <>
+                                        {msg.intro?.enabled && msg.intro?.message && (
+                                          <div className="mb-3 italic text-[10px] text-[var(--color-text-tertiary)] border-l-2 border-[var(--color-text-tertiary)] pl-2">
+                                            {msg.intro.message}
+                                          </div>
+                                        )}
+                                        {renderMarkdownContent(preferredContent)}
+                                      </>
                                     )
                                   ) : (
                                     renderLinkedContent(preferredContent)
@@ -2119,17 +2289,17 @@ const AIOAgentsModule = () => {
                                     Target: {resolveAgentName(selectedAgent)}
                                   </span>
                                 ) : null}
-                                {collabAgents.length > 0 && !hasActiveRun ? (
+                                { (collabAgents || []).length > 0 && !hasActiveRun ? (
                                   <div className="flex gap-1 overflow-hidden">
-                                    {collabAgents.slice(0, 2).map(key => (
+                                    { (collabAgents || []).slice(0, 2).map(key => (
                                       <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
                                         {resolveAgentName(key)}
                                       </span>
                                     ))}
-                                    {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
+                                    { (collabAgents || []).length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{ (collabAgents || []).length - 2}</span>}
                                   </div>
                                 ) : null}
-                                {!selectedAgent && !collabAgents.length ? (
+                                {!selectedAgent && !(collabAgents || []).length ? (
                                   <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
                                     {sessionStatusLabel}
                                   </span>
@@ -2225,7 +2395,7 @@ const AIOAgentsModule = () => {
                           <div className="grid grid-cols-3 gap-2">
                             {collabAgentKeys.map((agentKey) => {
                               const isTalkSelected = selectedAgent === agentKey;
-                              const isCollabSelected = collabAgents.includes(agentKey);
+                              const isCollabSelected = (collabAgents || []).includes(agentKey);
                               return (
                                 <button
                                   key={agentKey}
@@ -2317,7 +2487,7 @@ const AIOAgentsModule = () => {
                               disabled={!attachableBotRoles.length || rolesBusy}
                               className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
                             >
-                              <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
+                              <option value="">{attachableBotRoles.length ? 'Attach roleâ€¦' : 'All roles attached'}</option>
                               {attachableBotRoles.map((role) => (
                                 <option key={role.id} value={role.id}>{role.name}</option>
                               ))}

@@ -35,7 +35,8 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import { CrmService, toSnakeCase } from '../../services/crm.service';
+import { CrmService } from '../../services/crm.service';
+import { toSnakeCase } from '../../utils/string.utils';
 import { CommsService } from '../../services/comms.service';
 import { OrdersService } from '../../services/orders.service';
 import { SettingsService } from '../../services/settings.service';

@@ -35,8 +35,6 @@ import {
   withSessionToken,
 } from './backendApi';
 
-export { getApiBaseUrl, withSessionToken };
-
 export const MediaService = {
   getMediaAssets: () => getMediaAssetsApi(),
   getVault: () => getVaultApi(),

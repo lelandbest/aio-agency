@@ -1857,6 +1857,7 @@ class AICommandRequest(BaseModel):
     agent: str | None = None
     collabAgents: list[str] | None = None
     flowId: str | None = None
+    sessionType: str | None = None
 
 
 class OmegaArmRequest(BaseModel):
@@ -3839,12 +3840,22 @@ async def ai_command(request: Request, payload: AICommandRequest):
             input_classification = "CONVERSATION"
 
         # ── Step 2: Explicit Interaction State Resolution (CONTRACT ENFORCEMENT) ────
-        if input_classification in ["TASK", "MEDIA_TASK"]:
-            interaction_mode = "COMMAND"
-        elif requested_agent:
+        explicit_session_type = (payload.sessionType or resolved_context.get("sessionType") or "").upper().strip()
+        
+        if explicit_session_type not in ["CONVO", "COMMAND", "CONSULT"]:
+            return {
+                "status": "error",
+                "message": f"Invalid or missing sessionType contract: {explicit_session_type}. Message dropped.",
+                "result": {"error": "invalid_session_contract"}
+            }
+            
+        if explicit_session_type == "CONSULT":
             interaction_mode = "CONSULT"
-        else:
-            interaction_mode = "CONVO"
+        elif explicit_session_type in ["CONVO", "COMMAND"]:
+            interaction_mode = explicit_session_type
+            if interaction_mode == "CONVO" and input_classification in ["TASK", "MEDIA_TASK"]:
+                # Charlie can dynamically upgrade a conversation session to a task command
+                interaction_mode = "COMMAND"
         
         # ── Step 3: Branch by Interaction State ───────────────────────────────────────
         if interaction_mode == "CONSULT":
@@ -3884,42 +3895,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                     "result": {"routing": routing}
                 }
 
-        if interaction_mode == "CONVO":
-            # CONVO routes through unified orchestration bridge with fallback.
-            try:
-                assist_resp = generate_assist_response(
-                    message=command_text,
-                    context={
-                        **resolved_context,
-                        "assistMode": "brain",
-                        "targetAgent": requested_agent,
-                        "collab": is_collab,
-                        "interactionMode": interaction_mode
-                    },
-                    token=token,
-                    session=session,
-                    auth_store=auth_store,
-                    provider=provider,
-                    ai_service=ai_assist_service,
-                    ai_config=ai_provider
-                )
-                message = assist_resp.get("answer") or assist_resp.get("message") or "Ready."
-                return {
-                    "status": "success",
-                    **assist_resp,
-                    "message": message,
-                    "result": {
-                        "message": message,
-                        "routing": routing,
-                        "orchestration": assist_resp.get("orchestration")
-                    }
-                }
-            except Exception as e:
-                logger.error("CONVO orchestration bridge failed: %s", str(e))
-                # Fallback to direct Charlie for CONVO
-                pass
-
-        # ── Step 4: Legacy Fallback for unclassified prompts (CONVO only) ────
+        # ── Step 4: Fallback for CONVO (Direct Charlie Completion) ────
         if interaction_mode == "CONVO":
             charlie_sys_prompt += f"\n\nSystem Event Target Context:\n{json.dumps(resolved_context, default=str)}"
             convo_result = ai_service._provider_complete(

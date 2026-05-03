@@ -19,7 +19,8 @@ import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import { AiService } from '../../services/ai.service';
 import { CommsService } from '../../services/comms.service';
-import { CrmService, toSnakeCase } from '../../services/crm.service';
+import { CrmService } from '../../services/crm.service';
+import { toSnakeCase } from '../../utils/string.utils';
 import { ContactsService } from '../../services/contacts.service';
 
 const STORAGE_KEY = 'aio_pipelines_layout_v2';

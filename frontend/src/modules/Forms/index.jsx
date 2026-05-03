@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { FormsService, normalizeSourceUrl } from '../../services/forms.service';
+import { FormsService } from '../../services/forms.service';
+import { normalizeSourceUrl } from '../../utils/url.utils';
 import { MediaService } from '../../services/media.service';
 import { CrmService } from '../../services/crm.service';
 import { requestAiSuggestion } from '../../services/aiAssist';

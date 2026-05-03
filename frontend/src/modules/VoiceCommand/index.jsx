@@ -158,14 +158,16 @@ function ConfidenceMeter({ level, isArmed, isListening }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 // ─── Response normalizer ───────────────────────────────────────────────────────
+import { sanitizeResponseText } from '../../utils/consult.utils';
+
 function resolveSpokenText(data) {
   if (!data) return "";
-  return (
+  const raw =
     data?.response?.message ||
     data?.message ||
     data?.result?.message ||
-    ""
-  );
+    "";
+  return sanitizeResponseText(raw) || "";
 }
 
 function resolveMonitorReply(message) {
@@ -460,19 +462,20 @@ export default function VoiceCommandModule() {
         const res = await AiService.sendAiCommandRaw({ 
             command: raw, 
             intent: 'conversation',
-            agent: selectedAgent || 'CHARLIE',
+            agent: 'CHARLIE',
+            sessionType: 'CONVO',
             context: { 
               module: 'vtt', 
               surface: 'voice', 
               intent: 'conversation',
-              targetAgent: selectedAgent,
+              targetAgent: 'CHARLIE',
               collab: isCollab 
             }
           });
         const spokenText =
-          res.result?.message ||
-          res.result?.response?.answer ||
-          res.message ||
+          sanitizeResponseText(res.result?.message) ||
+          sanitizeResponseText(res.result?.response?.answer) ||
+          sanitizeResponseText(res.message) ||
           '';
 
         addCharlieMessage(raw, { ...res, response: { message: spokenText } });

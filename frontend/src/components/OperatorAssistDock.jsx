@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { sanitizeConsultError } from '../utils/consult.utils';
 import PropTypes from 'prop-types';
 import {
   ArrowUp,
@@ -152,7 +153,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
         ),
       );
     } catch (requestError) {
-      const messageText = requestError.message || 'Unable to reach Operator Assist.';
+      const messageText = sanitizeConsultError(requestError) || 'Unable to reach Operator Assist.';
       setError(messageText);
       setEntries((prev) =>
         prev.map((entry) =>

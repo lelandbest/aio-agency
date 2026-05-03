@@ -33,7 +33,7 @@ export default [
         patterns: [
           {
             group: ['*/backendApi'],
-            message: 'Direct imports from backendApi are forbidden in UI modules. Use the corresponding Service from /services instead (e.g. MediaService, FormsService, CrmService, etc.). Utility functions (getApiBaseUrl, withSessionToken, toSnakeCase, normalizeSourceUrl, request) are re-exported from their respective service files.',
+            message: 'Direct imports from backendApi are forbidden in UI modules. Use the corresponding Service from /services/ for API calls, and /utils/ for utility functions (toSnakeCase, normalizeSourceUrl, validateTagFormat, CANONICAL_TAG_PREFIXES).',
           },
         ],
       }],

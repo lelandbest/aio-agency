@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sanitizeConsultError } from '../../utils/consult.utils';
 import RichTextEditor from '../../components/RichTextEditor';
 import {
   AudioLines,
@@ -1454,7 +1455,7 @@ else if (selectedAction === 'transcribeMedia') {
       setChatInput('');
       await loadWorkspace('refresh');
     } catch (e) {
-      setError(e.message);
+      setError(sanitizeConsultError(e));
     } finally {
       setIsRunPending(false);
     }

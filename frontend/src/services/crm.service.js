@@ -16,14 +16,9 @@ import {
   createTagApi,
   updateTagApi,
   deleteTagApi,
-  validateTagFormat,
-  CANONICAL_TAG_PREFIXES,
   getCmsTablesApi,
   getCmsTableDataApi,
-  toSnakeCase,
 } from './backendApi';
-
-export { toSnakeCase };
 
 export const CrmService = {
   getContacts: () => getContactsApi(),
@@ -43,8 +38,6 @@ export const CrmService = {
   createTag: (payload) => createTagApi(payload),
   updateTag: (tagId, updates) => updateTagApi(tagId, updates),
   deleteTag: (tagId) => deleteTagApi(tagId),
-  validateTagFormat,
-  CANONICAL_TAG_PREFIXES,
   getCmsTables: () => getCmsTablesApi(),
   getCmsTableData: (slug) => getCmsTableDataApi(slug),
 };

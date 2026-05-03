@@ -2416,7 +2416,6 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
             <ReactFlow
               nodes={nodes}
-        edges={edges}
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}

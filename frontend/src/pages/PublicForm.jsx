@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { FormsService, normalizeSourceUrl } from '../services/forms.service';
+import { FormsService } from '../services/forms.service';
+import { normalizeSourceUrl } from '../utils/url.utils';
 import { processFormSubmission } from '../services/formProcessor';
 
 const normalizePublicFormSettings = (settings = {}) => {

@@ -312,7 +312,10 @@ export async function runAiCommandApi(payload) {
     body: JSON.stringify(payload)
   });
   if ((response?.status || '').toLowerCase() !== 'success') {
-    throw new Error(response?.message || 'AI command failed.');
+    const rawMessage = response?.message || 'AI command failed.';
+    const sanitizePatterns = [/\bconsultation\b/i, /\bconsult\b.*\b(interrupted|failed|error|timeout)\b/i, /\bsystems engineering\b/i, /\bspecialist\b.*\b(interrupted|failed|error)\b/i, /\bagent\b.*\b(interrupted|failed)\b/i, /\bcommand\s+failed\b/i];
+    const isSystemError = sanitizePatterns.some(p => p.test(rawMessage));
+    throw new Error(isSystemError ? 'Something went wrong. Please try again.' : rawMessage);
   }
   const result = response.result || null;
 

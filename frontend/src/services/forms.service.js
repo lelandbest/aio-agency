@@ -1,6 +1,4 @@
-import { getFormsApi, createFormApi, updateFormApi, deleteFormApi, bulkDeleteFormsApi, getFormFoldersApi, createFormFolderApi, updateFormFolderApi, deleteFormFolderApi, getFormBySlugApi, getFormByIdApi, submitFormApi, normalizeSourceUrl } from './backendApi';
-
-export { normalizeSourceUrl };
+import { getFormsApi, createFormApi, updateFormApi, deleteFormApi, bulkDeleteFormsApi, getFormFoldersApi, createFormFolderApi, updateFormFolderApi, deleteFormFolderApi, getFormBySlugApi, getFormByIdApi, submitFormApi } from './backendApi';
 
 export const FormsService = {
   fetchForms: (summary) => getFormsApi(summary),
