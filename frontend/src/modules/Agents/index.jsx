@@ -8,7 +8,8 @@ import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/ic
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
-import { validateAndSanitizeMessage } from '../../utils/sessionValidator';
+import { createMessage, replaceMessage, createSessionId, createLaneMessageStore, addMessageToLane, getLaneMessages } from '../../utils/sessionValidator';
+import { routeInput, LANE } from '../../orchestration/hardRouter';
 
 const AGENT_CHAT_STORAGE_KEY = 'aio-agents-chat-session';
 const AGENT_SELECTED_FLOW_STORAGE_KEY = 'aio-agents-selected-flow';
@@ -534,69 +535,65 @@ const AIOAgentsModule = () => {
     sessionType: activeSessionType
   });
 
-  useEffect(() => {
-    setSessionIdentity(prev => {
-      if (prev.agentKey === activeAgentKey) return prev;
-      
-      const newSessionId = `sess-${Date.now()}`;
-      const newSnapshotVersion = prev.snapshotVersion + 1;
-      
-      if (activeAgentKey && activeAgentKey !== 'CHARLIE') {
-          const introMsg = validateAndSanitizeMessage({
-              role: 'assistant',
-              content: `${resolveAgentName(activeAgentKey)} Activated! ${pickSalutation()}`,
-              timestamp: 'Now',
-              sessionType: 'CONSULT',
-              internalTs: Date.now(),
-              sessionId: newSessionId,
-              snapshotVersion: newSnapshotVersion,
-              rank: activeAgentKey,
-              intro: { enabled: true, message: `${resolveAgentName(activeAgentKey)} Activated! ${pickSalutation()}` }
-          });
-          
-          if (introMsg) {
-              setConsultSessions(sessions => {
-                  if ((sessions[activeAgentKey] || []).length === 0) {
-                      return { ...sessions, [activeAgentKey]: [introMsg] };
-                  }
-                  return sessions;
-              });
-          }
-      }
+  const createSession = useCallback((agentKey) => {
+    const sessionId = createSessionId();
+    const sessionType = agentKey && agentKey !== 'CHARLIE' ? 'CONSULT' : 'CONVO';
+    const identity = {
+      sessionId,
+      snapshotVersion: 1,
+      agentKey,
+      sessionType,
+    };
+    setSessionIdentity(identity);
 
-      return {
-        sessionId: newSessionId,
-        snapshotVersion: newSnapshotVersion,
-        agentKey: activeAgentKey,
-        sessionType: activeSessionType
-      };
-    });
-  }, [activeAgentKey, activeSessionType]);
+    if (agentKey && agentKey !== 'CHARLIE') {
+      const introMsg = createMessage({
+        role: 'assistant',
+        content: `${resolveAgentName(agentKey)} Activated! ${pickSalutation()}`,
+        sessionType: 'CONSULT',
+        internalTs: Date.now(),
+        sessionId,
+        snapshotVersion: 1,
+        agentKey,
+        rank: agentKey,
+        intro: { enabled: true, message: `${resolveAgentName(agentKey)} Activated! ${pickSalutation()}` },
+      });
+      if (introMsg) {
+        setConsultSessions(prev => {
+          if ((prev[agentKey] || []).length === 0) {
+            return { ...prev, [agentKey]: [introMsg] };
+          }
+          return prev;
+        });
+      }
+    }
+
+    return identity;
+  }, []);
+
+  useEffect(() => {
+    if (sessionIdentity.agentKey === activeAgentKey) return;
+    createSession(activeAgentKey);
+  }, [activeAgentKey]);
   
   // Create a merged view for Charlie that interleaves CONVO and COMMAND, and isolated views for CONSULT
   const messages = isActiveConsult 
     ? (consultSessions[activeAgentKey] || []) 
     : [...convoMessages, ...commandLog].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
 
-  const setMessages = (updater) => {
+  const setMessages = useCallback((updater) => {
     if (isActiveConsult) {
       setConsultSessions(prev => {
         const prevSession = prev[activeAgentKey] || [];
-        return { ...prev, [activeAgentKey]: typeof updater === 'function' ? updater(prevSession) : updater };
+        const next = typeof updater === 'function' ? updater(prevSession) : updater;
+        return { ...prev, [activeAgentKey]: next };
       });
     } else {
-      setConvoMessages(prevConvo => {
-        const prevMerged = [...prevConvo, ...commandLog].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
-        const rawNext = typeof updater === 'function' ? updater(prevMerged) : updater;
-        return rawNext.filter(m => m.sessionType !== 'COMMAND');
-      });
-      setCommandLog(prevCommand => {
-        const prevMerged = [...convoMessages, ...prevCommand].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0));
-        const rawNext = typeof updater === 'function' ? updater(prevMerged) : updater;
-        return rawNext.filter(m => m.sessionType === 'COMMAND');
-      });
+      const next = typeof updater === 'function' ? updater([...convoMessages, ...commandLog].sort((a, b) => (a.internalTs || 0) - (b.internalTs || 0))) : updater;
+      setConvoMessages(next.filter(m => m.sessionType !== 'COMMAND'));
+      setCommandLog(next.filter(m => m.sessionType === 'COMMAND'));
     }
-  };
+  }, [isActiveConsult, activeAgentKey, convoMessages, commandLog]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
   const [activeRun, setActiveRun] = useState(null);
@@ -700,21 +697,26 @@ const AIOAgentsModule = () => {
       const storedConvo = localStorage.getItem('aio_convo_messages');
       if (storedConvo) {
          const parsed = JSON.parse(storedConvo);
-         setConvoMessages(parsed.map(m => validateAndSanitizeMessage(m)).filter(Boolean));
+         if (Array.isArray(parsed)) setConvoMessages(parsed.filter(m => m && m.sessionType));
       }
       const storedCmd = localStorage.getItem('aio_command_log');
       if (storedCmd) {
          const parsed = JSON.parse(storedCmd);
-         setCommandLog(parsed.map(m => validateAndSanitizeMessage(m)).filter(Boolean));
+         if (Array.isArray(parsed)) setCommandLog(parsed.filter(m => m && m.sessionType));
       }
       const storedConsult = localStorage.getItem('aio_consult_sessions');
       if (storedConsult) {
          const parsed = JSON.parse(storedConsult);
-         const hydrated = {};
-         for (const key of Object.keys(parsed)) {
-            hydrated[key] = (parsed[key] || []).map(m => validateAndSanitizeMessage(m)).filter(Boolean);
+         if (parsed && typeof parsed === 'object') {
+            const hydrated = {};
+            for (const key of Object.keys(parsed)) {
+               const sessionMsgs = parsed[key];
+               if (Array.isArray(sessionMsgs)) {
+                  hydrated[key] = sessionMsgs.filter(m => m && m.sessionType);
+               }
+            }
+            setConsultSessions(hydrated);
          }
-         setConsultSessions(hydrated);
       }
     } catch { }
   }, []);
@@ -859,209 +861,119 @@ const AIOAgentsModule = () => {
     } catch { }
   };
 
+  const determineLane = () => {
+    if (selectionMode === 'collab') {
+      return LANE.COMMAND;
+    }
+
+    if (isActiveConsult) {
+      return LANE.CONSULT;
+    }
+
+    return LANE.CONVO;
+  };
+
+  const getActiveMessages = (mode) => {
+    switch (mode) {
+      case LANE.CONVO:
+        return convoMessages;
+      case LANE.COMMAND:
+        return commandLog;
+      case LANE.CONSULT:
+        return consultSessions[activeAgentKey] || [];
+      default:
+        return [];
+    }
+  };
+
+  const currentLane = determineLane();
+  const activeMessages = getActiveMessages(currentLane);
+
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
     const attachmentPrefix = localAttachments.length ? `[Local attachments: ${localAttachments.join(', ')}]\n` : '';
-    const nextMessage = `${attachmentPrefix}${chatInput.trim()}`;
-    const pendingMessageId = `pending-${Date.now()}`;
+    const input = `${attachmentPrefix}${chatInput.trim()}`;
     setActiveRun(null);
-    // COMMAND INTERCEPTION: Enforce Charlie-only command authority
-    const COMMAND_REGEX = /^(open|run|create|summarize|start|stop|search|transcribe|test)\b/i;
-    const isCommand = nextMessage.startsWith('/') || nextMessage.startsWith('!') || COMMAND_REGEX.test(nextMessage);
-    const resolvedAgent = isCommand ? 'CHARLIE' : (selectedAgent || activeAgent?.registryKey || null);
-    const isConsult = Boolean(resolvedAgent) && resolvedAgent !== 'CHARLIE';
-    const currentSessionType = isConsult ? 'CONSULT' : (isCommand ? 'COMMAND' : 'CONVO');
-
-    const requestSnapshotVersion = sessionIdentity.snapshotVersion;
-    const requestSessionId = sessionIdentity.sessionId;
-
-    const userMsg = validateAndSanitizeMessage({ 
-      role: 'user', 
-      content: nextMessage, 
-      timestamp: 'Now', 
-      sessionType: currentSessionType, 
-      internalTs: Date.now(), 
-      sessionId: requestSessionId, 
-      snapshotVersion: requestSnapshotVersion 
-    }, sessionIdentity);
-    
-    const pendingMsg = validateAndSanitizeMessage({
-        clientId: pendingMessageId,
-        role: 'assistant',
-        content: 'Awaiting response transmission...',
-        output: { format: 'md', content: 'Awaiting response transmission...' },
-        timestamp: 'PENDING',
-        rank: resolvedAgent,
-        chain: '',
-        status: 'PENDING',
-        error: null,
-        pending: true,
-        sessionType: currentSessionType,
-        internalTs: Date.now() + 1,
-        sessionId: requestSessionId,
-        snapshotVersion: requestSnapshotVersion
-    }, sessionIdentity);
-
-    if (userMsg && pendingMsg) {
-      setMessages((prev) => [...prev, userMsg, pendingMsg]);
-    }
     setChatInput('');
     setLocalAttachments([]);
 
+    const lane = determineLane();
+    const selectedAgentKey = isActiveConsult ? (selectedAgent || activeAgent?.registryKey) : null;
+
+    if (lane === LANE.CONVO) {
+      if (selectedAgentKey && selectedAgentKey !== 'CHARLIE') {
+        throw new Error('CONVO is Charlie-only');
+      }
+    }
+
+    if (lane === LANE.COMMAND) {
+      if (typeof runAgentDirect === 'function' && selectedAgentKey && selectedAgentKey !== 'CHARLIE') {
+        throw new Error('COMMAND cannot directly select agents');
+      }
+    }
+
+    if (lane === LANE.CONSULT) {
+      if (!selectedAgentKey) {
+        throw new Error('CONSULT requires agent');
+      }
+    }
+
+    console.log('[ROUTE]', { mode: lane, input: input.substring(0, 50), selectedAgent: selectedAgentKey });
+
     try {
-      const response = await AiService.runAiCommand({
-        command: isCommand ? nextMessage.replace(/^[\/!]/, '') : nextMessage,
-        agent: resolvedAgent,
-        sessionType: currentSessionType,
-        intent: isCommand ? 'command' : 'conversation',
-        ...((collabAgents || []).length ? { collabAgents } : {}),
-        ...(selectedFlow ? { flowId: selectedFlow.id } : {}),
-        context: {
-          module: 'agents',
-          surface: 'command',
-          intent: isCommand ? 'command' : 'conversation',
-          requestedAgent: isCommand ? 'CHARLIE' : (selectedAgent || ''),
-          activeAgent: isCommand ? 'CHARLIE' : (selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || ''),
-          collabAgents: collabAgents,
-          flowId: selectedFlow?.id || null,
-          flowName: selectedFlow?.name || null,
-        }
+      const result = await routeInput({ 
+        input, 
+        lane, 
+        selectedAgent: selectedAgentKey 
       });
-      
-      // Async Response Guard: Verify session hasn't drifted during network request
-      // We must use a callback in setMessages to access the latest state, but wait,
-      // sessionIdentity is available via closure but it might be stale.
-      // However, if we pass the message with its requestSnapshotVersion, 
-      // the validateAndSanitizeMessage inside setMessages will drop it automatically!
-      
-      const runId = response?.runId || response?.run?.id || '';
-      if (runId) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.clientId === pendingMessageId
-              ? { ...msg, runId, pending: true }
-              : msg
-          )
-        );
-        try {
-          const run = hydrateActiveRun(await AiService.getAiRun(runId));
-          setActiveRun(run);
-          const finalMsg = validateAndSanitizeMessage(buildAssistantMessageFromRun(run, { 
-            clientId: pendingMessageId, 
-            sessionType: currentSessionType, 
-            sessionId: requestSessionId, 
-            snapshotVersion: requestSnapshotVersion
-          }), sessionIdentity);
-          if (finalMsg) {
-            setMessages((prev) =>
-              prev.map((msg) => msg.clientId === pendingMessageId ? finalMsg : msg)
-            );
-          }
-          const status = (run?.status || '').toLowerCase();
-          const status_check_array_2 = ['completed', 'failed', 'success'];
-          if (!status_check_array_2.includes(status)) {
-            startRunPolling(runId);
-          }
-        } catch (error) {
-          const errorMsg = validateAndSanitizeMessage({
-            clientId: pendingMessageId,
-            role: 'assistant',
-            content: 'Run failed to load. Please retry.',
-            output: { format: 'txt', content: 'Run failed to load. Please retry.' },
-            timestamp: 'Now',
-            rank: 'SYSTEM',
-            chain: '',
-            status: 'ERROR',
-            error: sanitizeConsultError(error) || 'Run failed to load. Please retry.',
-            pending: false,
-            runId: undefined,
-            sessionId: requestSessionId,
-            snapshotVersion: requestSnapshotVersion,
-            sessionType: currentSessionType
-          }, sessionIdentity);
-          if (errorMsg) {
-            setMessages((prev) =>
-              prev.map((msg) => msg.clientId === pendingMessageId ? errorMsg : msg)
-            );
-          }
-        }
-      } else {
-        const immediateText = response?.message || response?.response?.answer || response?.response?.message || '';
-        const orchestration = response?.result?.orchestration || response?.orchestration;
-        
-        if (immediateText) {
-          const directMsg = validateAndSanitizeMessage({
-            clientId: pendingMessageId,
-            role: 'assistant',
-            content: immediateText,
-            output: { format: 'md', content: immediateText },
-            timestamp: 'Now',
-            rank: orchestration?.target || resolvedAgent || '',
-            chain: orchestration?.chain?.join(' -> ') || '',
-            status: 'COMPLETED',
-            error: null,
-            pending: false,
-            runId: undefined,
-            sessionId: requestSessionId,
-            snapshotVersion: requestSnapshotVersion,
-            sessionType: currentSessionType
-          }, sessionIdentity);
-          if (directMsg) {
-            setMessages((prev) =>
-              prev.map((msg) => msg.clientId === pendingMessageId ? directMsg : msg)
-            );
-          }
+
+      if (result.userMessage) {
+        if (lane === LANE.CONVO) {
+          setConvoMessages(prev => [...prev, result.userMessage]);
+        } else if (lane === LANE.COMMAND) {
+          setCommandLog(prev => [...prev, result.userMessage]);
         } else {
-          const noContentMsg = validateAndSanitizeMessage({
-            clientId: pendingMessageId,
-            role: 'assistant',
-            content: '',
-            output: { format: 'txt', content: '' },
-            timestamp: 'Now',
-            rank: orchestration?.target || resolvedAgent || '',
-            chain: orchestration?.chain?.join(' -> ') || '',
-            status: 'COMPLETED',
-            error: 'No valid output text could be derived from the orchestration response.',
-            pending: false,
-            runId: undefined,
-            sessionId: requestSessionId,
-            snapshotVersion: requestSnapshotVersion,
-            sessionType: currentSessionType
-          }, sessionIdentity);
-          if (noContentMsg) {
-            setMessages((prev) =>
-              prev.map((msg) => msg.clientId === pendingMessageId ? noContentMsg : msg)
-            );
-          }
+          setConsultSessions(prev => ({ ...prev, [activeAgentKey]: [...(prev[activeAgentKey] || []), result.userMessage] }));
         }
       }
-      const latestRuns = await AiService.getAiRuns(12);
-      setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
-      if (selectedFlow) {
-        clearSelectedFlow();
+      if (result.assistantMessage) {
+        if (lane === LANE.CONVO) {
+          setConvoMessages(prev => [...prev, result.assistantMessage]);
+        } else if (lane === LANE.COMMAND) {
+          setCommandLog(prev => [...prev, result.assistantMessage]);
+        } else {
+          setConsultSessions(prev => ({ ...prev, [activeAgentKey]: [...(prev[activeAgentKey] || []), result.assistantMessage] }));
+        }
+      }
+
+      if (!result.error) {
+        const latestRuns = await AiService.getAiRuns(12);
+        setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
+        if (selectedFlow) {
+          clearSelectedFlow();
+        }
       }
     } catch (error) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.clientId === pendingMessageId
-            ? {
-                ...msg,
-                content: sanitizeConsultError(error) || 'Unable to reach high-command.',
-                output: { format: 'txt', content: sanitizeConsultError(error) || 'Unable to reach high-command.' },
-                intro: { enabled: isFirstConsultMessage, message: greetingText },
-                timestamp: 'Now',
-                rank: 'SYSTEM',
-                chain: '',
-                status: 'ERROR',
-                error: sanitizeConsultError(error) || 'Unable to reach high-command.',
-                pending: false,
-                runId: undefined,
-                sessionId: requestSessionId,
-                snapshotVersion: requestSnapshotVersion
-              }
-            : msg
-        )
-      );
+      const errorMessage = createMessage({
+        role: 'assistant',
+        content: sanitizeConsultError(error) || 'Lane routing failed.',
+        output: { format: 'txt', content: sanitizeConsultError(error) || 'Lane routing failed.' },
+        rank: 'SYSTEM',
+        status: 'ERROR',
+        error: error.message,
+        sessionType: lane,
+        sessionId: sessionIdentity.sessionId,
+        snapshotVersion: sessionIdentity.snapshotVersion
+      });
+      if (errorMessage) {
+        if (lane === LANE.CONVO) {
+          setConvoMessages(prev => [...prev, errorMessage]);
+        } else if (lane === LANE.COMMAND) {
+          setCommandLog(prev => [...prev, errorMessage]);
+        } else {
+          setConsultSessions(prev => ({ ...prev, [activeAgentKey]: [...(prev[activeAgentKey] || []), errorMessage] }));
+        }
+      }
     } finally {
       setTimeout(() => chatInputRef.current?.focus(), 10);
     }
@@ -1127,10 +1039,26 @@ const AIOAgentsModule = () => {
     }
     setActiveRun(run);
     setView(nextView);
-    setMessages((prev) => {
-      const alreadyPresent = prev.some((message) => message.runId === run.id);
-      return alreadyPresent ? prev : [...prev, buildAssistantMessageFromRun(run)];
+    const runMsg = createMessage({
+      ...buildAssistantMessageFromRun(run),
+      sessionType: sessionIdentity.sessionType,
+      sessionId: sessionIdentity.sessionId,
+      snapshotVersion: sessionIdentity.snapshotVersion,
     });
+    if (!runMsg) return;
+    const runLane = runMsg.sessionType;
+    if (runLane === LANE.CONVO) {
+      setConvoMessages(prev => prev.some(m => m.runId === run.id) ? prev : [...prev, runMsg]);
+    } else if (runLane === LANE.COMMAND) {
+      setCommandLog(prev => prev.some(m => m.runId === run.id) ? prev : [...prev, runMsg]);
+    } else if (runLane === LANE.CONSULT) {
+      const agentKey = sessionIdentity.agentKey;
+      setConsultSessions(prev => {
+        const current = prev[agentKey] || [];
+        if (current.some(m => m.runId === run.id)) return prev;
+        return { ...prev, [agentKey]: [...current, runMsg] };
+      });
+    }
   };
 
   const output = activeRun?.output || null;

@@ -1,108 +1,158 @@
 export const VALID_SESSION_TYPES = ['CONVO', 'COMMAND', 'CONSULT'];
 
-export function validateAndSanitizeMessage(msg) {
-  if (!msg) return null;
-  const activeContext = arguments.length > 1 ? arguments[1] : null;
-
-  const sessionType = msg.sessionType;
-  if (!sessionType || !VALID_SESSION_TYPES.includes(sessionType)) {
-    console.error(`[SessionValidator] Invalid or missing sessionType: ${sessionType}. Message dropped.`);
+export function createMessage(fields) {
+  if (!fields || !fields.sessionType) {
+    console.error('[SessionValidator] createMessage: missing sessionType. Message dropped.');
     return null;
   }
 
-  let sessionId = msg.sessionId;
-  let snapshotVersion = msg.snapshotVersion;
-
-  if (activeContext) {
-      if (sessionType !== activeContext.sessionType && !(activeContext.sessionType === 'CONVO' && sessionType === 'COMMAND')) {
-          console.error(`[SessionValidator] Session type mismatch. Expected ${activeContext.sessionType}, got ${sessionType}`);
-          return null;
-      }
-      if (sessionId && sessionId !== activeContext.sessionId) {
-          console.error(`[SessionValidator] Session ID mismatch. Expected ${activeContext.sessionId}, got ${sessionId}`);
-          return null;
-      }
-      if (snapshotVersion && snapshotVersion !== activeContext.snapshotVersion) {
-          console.error(`[SessionValidator] Snapshot version mismatch. Expected ${activeContext.snapshotVersion}, got ${snapshotVersion}`);
-          return null;
-      }
-      sessionId = sessionId || activeContext.sessionId;
-      snapshotVersion = snapshotVersion || activeContext.snapshotVersion;
-  } else {
-      if (!sessionId || !snapshotVersion) {
-          console.error(`[SessionValidator] Missing hydration safety guards (sessionId/snapshotVersion). Message dropped.`);
-          return null;
-      }
+  if (!VALID_SESSION_TYPES.includes(fields.sessionType)) {
+    console.error(`[SessionValidator] createMessage: invalid sessionType "${fields.sessionType}". Message dropped.`);
+    return null;
   }
 
-  const messageId = msg.messageId || msg.clientId || msg.runId || `msg-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
-  const timestamp = msg.timestamp || new Date().toISOString();
-
-  if (sessionType === 'CONVO' || sessionType === 'COMMAND') {
-      let content = msg.content !== undefined ? msg.content : '';
-      if (typeof content !== 'string') {
-          try { content = JSON.stringify(content); } catch { content = String(content); }
-      }
-
-      const { agentKey, ...baseMsg } = msg;
-
-      return {
-          ...baseMsg,
-          messageId,
-          timestamp,
-          sessionId,
-          snapshotVersion,
-          content,
-          source: msg.source || msg.rank || ''
-      };
-  } else if (sessionType === 'CONSULT') {
-      const agentKey = msg.agentKey || msg.rank || 'UNKNOWN_AGENT';
-      const responseId = msg.responseId || messageId;
-      
-      if (msg.role === 'user') {
-          return {
-              ...msg,
-              messageId,
-              timestamp,
-              sessionId,
-              snapshotVersion,
-              agentKey,
-              responseId
-          };
-      }
-      
-      let format = msg.output?.format || 'txt';
-      if (!['txt', 'md', 'json', 'csv', 'code'].includes(format)) {
-          format = 'txt';
-      }
-      
-      const outputContent = typeof msg.output?.content === 'string' ? msg.output.content : String(msg.content || '');
-      
-      const { content, source, rank, ...baseMsg } = msg;
-      
-      return {
-          ...baseMsg,
-          messageId,
-          timestamp,
-          sessionId,
-          snapshotVersion,
-          agentKey,
-          responseId,
-          output: {
-              format,
-              content: outputContent
-          },
-          intro: {
-              enabled: Boolean(msg.intro?.enabled),
-              message: typeof msg.intro?.message === 'string' ? msg.intro.message : ''
-          },
-          structuredData: msg.structuredData || null,
-          metadata: msg.metadata || {
-              timestamp: Date.now(),
-              taskStatus: 'complete'
-          }
-      };
+  if (!fields.sessionId) {
+    console.error('[SessionValidator] createMessage: missing sessionId. Message dropped.');
+    return null;
   }
 
-  return { ...msg, messageId, timestamp, sessionId, snapshotVersion };
+  const messageId = fields.messageId || fields.clientId || fields.runId || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const timestamp = fields.timestamp || new Date().toISOString();
+  const snapshotVersion = fields.snapshotVersion || 1;
+
+  if (fields.sessionType === 'CONVO' || fields.sessionType === 'COMMAND') {
+    let content = fields.content !== undefined ? fields.content : '';
+    if (typeof content !== 'string') {
+      try { content = JSON.stringify(content); } catch { content = String(content); }
+    }
+
+    return Object.freeze({
+      messageId,
+      role: fields.role || 'user',
+      content,
+      sessionType: fields.sessionType,
+      sessionId: fields.sessionId,
+      snapshotVersion,
+      timestamp,
+      internalTs: fields.internalTs || Date.now(),
+      source: fields.source || fields.rank || '',
+      ...(fields.rank ? { rank: fields.rank } : {}),
+      ...(fields.pending ? { pending: true } : {}),
+      ...(fields.runId ? { runId: fields.runId } : {}),
+      ...(fields.clientId ? { clientId: fields.clientId } : {}),
+    });
+  }
+
+  if (fields.sessionType === 'CONSULT') {
+    const agentKey = fields.agentKey || fields.rank || 'UNKNOWN_AGENT';
+    const responseId = fields.responseId || messageId;
+
+    if (fields.role === 'user') {
+      return Object.freeze({
+        messageId,
+        role: 'user',
+        content: fields.content || '',
+        sessionType: 'CONSULT',
+        sessionId: fields.sessionId,
+        snapshotVersion,
+        timestamp,
+        internalTs: fields.internalTs || Date.now(),
+        agentKey,
+        responseId,
+      });
+    }
+
+    let format = fields.output?.format || 'txt';
+    if (!['txt', 'md', 'json', 'csv', 'code'].includes(format)) {
+      format = 'txt';
+    }
+
+    const outputContent = typeof fields.output?.content === 'string' ? fields.output.content : String(fields.content || '');
+
+    return Object.freeze({
+      messageId,
+      role: fields.role || 'assistant',
+      content: fields.content || '',
+      sessionType: 'CONSULT',
+      sessionId: fields.sessionId,
+      snapshotVersion,
+      timestamp,
+      internalTs: fields.internalTs || Date.now(),
+      agentKey,
+      responseId,
+      output: {
+        format,
+        content: outputContent,
+      },
+      intro: {
+        enabled: Boolean(fields.intro?.enabled),
+        message: typeof fields.intro?.message === 'string' ? fields.intro.message : '',
+      },
+      ...(fields.structuredData ? { structuredData: fields.structuredData } : {}),
+      ...(fields.metadata ? { metadata: fields.metadata } : {}),
+      ...(fields.rank ? { rank: fields.rank } : {}),
+      ...(fields.chain ? { chain: fields.chain } : {}),
+      ...(fields.status ? { status: fields.status } : {}),
+      ...(fields.error ? { error: fields.error } : {}),
+      ...(fields.pending ? { pending: true } : {}),
+      ...(fields.runId ? { runId: fields.runId } : {}),
+      ...(fields.clientId ? { clientId: fields.clientId } : {}),
+    });
+  }
+
+  return null;
+}
+
+export function replaceMessage(messages, targetId, replacement) {
+  return messages.map((msg) =>
+    msg.messageId === targetId || msg.clientId === targetId
+      ? replacement
+      : msg
+  );
+}
+
+export function createSessionId() {
+  return `sess-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+export const LANE_ISOLATION = {
+  CONVO: 'CONVO',
+  COMMAND: 'COMMAND',
+  CONSULT: 'CONSULT'
+};
+
+export function createLaneMessageStore() {
+  return {
+    [LANE_ISOLATION.CONVO]: [],
+    [LANE_ISOLATION.COMMAND]: [],
+    [LANE_ISOLATION.CONSULT]: []
+  };
+}
+
+export function addMessageToLane(store, lane, message) {
+  if (!store[lane]) {
+    console.error(`[SessionValidator] Invalid lane: ${lane}`);
+    return store;
+  }
+  return {
+    ...store,
+    [lane]: [...store[lane], message]
+  };
+}
+
+export function getLaneMessages(store, lane) {
+  if (!store[lane]) {
+    console.error(`[SessionValidator] Invalid lane: ${lane}`);
+    return [];
+  }
+  return store[lane];
+}
+
+export function filterByLane(store, lane) {
+  return getLaneMessages(store, lane);
+}
+
+export function isLaneCrossContaminated(store, candidateLane, message) {
+  if (!message || !message.sessionType) return false;
+  return message.sessionType !== candidateLane;
 }
