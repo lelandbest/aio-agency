@@ -462,7 +462,35 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
         if async_key and provider != "async" and not get_elevenlabs_api_key(tenant_id):
             provider = "async"
 
-        if (provider == "async" and async_key) or (async_key and provider == "async"):
+        audio_bytes = None
+        req = None
+
+        if provider == "voicebox":
+            base_url = os.environ.get("VOICEBOX_API_URL") or "http://localhost:8000"
+            url = f"{base_url}/api/tts"
+            selected_voice = voice or "default"
+            body = json.dumps({
+                "text": text,
+                "voice": selected_voice,
+                "engine": "kokoro"
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                url, data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "audio/mpeg",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    audio_bytes = resp.read()
+            except Exception as e:
+                import logging
+                logging.getLogger("vtt_service").warning("Voicebox offline or connection refused: %s. Falling back to native system voice.", e)
+                return None
+        elif (provider == "async" and async_key) or (async_key and provider == "async"):
             # Wire up async.com specifically
             url = "https://api.async.com/v1/text_to_speech"
             selected_async_voice = voice or get_async_voice_selection(tenant_id) or "announcer"
@@ -525,8 +553,11 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
                 method="POST",
             )
 
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            audio_bytes = resp.read()
+        if audio_bytes is None:
+            if req is None:
+                return None
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                audio_bytes = resp.read()
 
         if not audio_bytes:
             return None

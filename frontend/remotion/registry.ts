@@ -34,7 +34,7 @@ export const REMOTION_TEMPLATES: Record<string, RemotionTemplate> = {
     compositionId: 'AudiogramComposition',
     description: 'Audio-first branded square social video with high-impact captions and animated waveform.',
     width: 1080,
-    height: 1920,
+    height: 1080,
     fps: 30,
     durationInFrames: 300,
     supportedProps: ['title', 'subtitle', 'audioUrl', 'transcriptLines', 'watermarkText', 'themeVariant', 'logoUrl']
