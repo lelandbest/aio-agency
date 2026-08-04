@@ -1375,6 +1375,11 @@ class AuthForgotPasswordRequest(BaseModel):
     email: str
 
 
+class AuthResetPasswordSubmitRequest(BaseModel):
+    token: str
+    newPassword: str
+
+
 class AuthLoginRequest(BaseModel):
     email: str
     password: str
@@ -2545,6 +2550,8 @@ def is_public_api_request(path: str) -> bool:
         "/api/auth/bootstrap",
         "/api/auth/login",
         "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+        "/api/auth/reset-password/validate",
         "/api/auth/google/authorize",
         "/api/oauth/callback",
     }
@@ -3099,9 +3106,31 @@ async def bootstrap_auth(request: Request, payload: AuthBootstrapRequest):
 async def forgot_password_auth(payload: AuthForgotPasswordRequest):
     email = payload.email.strip().lower()
     logger.info(f"Password recovery requested for: {email}")
-    # In a real implementation, we would generate a token and send an email here.
-    # For now, we return success to avoid user enumeration.
-    return {"message": "If an account exists with that email, a password reset link has been sent."}
+    token_info = auth_store.create_password_reset_token(email)
+    if token_info:
+        logger.info(f"Password reset token created for {email}: {token_info['token']}")
+    return {
+        "message": "If an account exists with that email, a password reset link has been sent.",
+        "resetToken": token_info["token"] if token_info else None,
+    }
+
+
+@app.get("/api/auth/reset-password/validate")
+async def validate_reset_token_auth(token: str):
+    try:
+        token_info = auth_store.validate_password_reset_token(token)
+        return {"valid": True, "email": token_info["email"]}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/auth/reset-password")
+async def reset_password_auth(payload: AuthResetPasswordSubmitRequest):
+    try:
+        auth_store.reset_password_with_token(payload.token, payload.newPassword)
+        return {"message": "Password reset successfully. You may now log in with your new password."}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/auth/login")

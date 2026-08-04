@@ -192,6 +192,24 @@ export async function loginApi(payload) {
   return response.session || null;
 }
 
+export async function forgotPasswordApi(email) {
+  return request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+}
+
+export async function validateResetTokenApi(token) {
+  return request(`/api/auth/reset-password/validate?token=${encodeURIComponent(token)}`);
+}
+
+export async function resetPasswordApi(payload) {
+  return request('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getCurrentSessionApi() {
   const response = await request('/api/auth/session');
   return response.session || null;

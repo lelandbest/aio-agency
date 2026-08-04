@@ -432,6 +432,16 @@ class AuthStore:
                     dismissedAt TEXT NOT NULL,
                     PRIMARY KEY(id, tenantId)
                 );
+
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    token TEXT PRIMARY KEY,
+                    userId TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    expiresAt TEXT NOT NULL,
+                    usedAt TEXT,
+                    createdAt TEXT NOT NULL,
+                    FOREIGN KEY (userId) REFERENCES app_users(id) ON DELETE CASCADE
+                );
                 """
             )
             self._ensure_column(conn, "tenants", "settingsJson", "TEXT NOT NULL DEFAULT '{}'")
@@ -3405,6 +3415,83 @@ class AuthStore:
             conn.execute(
                 "UPDATE app_users SET passwordHash = ?, passwordSalt = ?, updatedAt = ? WHERE id = ?",
                 (password_hash, password_salt, utcnow_iso(), user["id"]),
+            )
+            conn.commit()
+
+    def create_password_reset_token(self, email: str) -> dict[str, Any] | None:
+        normalized = normalize_email(email)
+        if not normalized:
+            return None
+        with self._connect() as conn:
+            user = conn.execute("SELECT id, email FROM app_users WHERE LOWER(email) = ? LIMIT 1", (normalized,)).fetchone()
+            if not user:
+                return None
+            token = secrets.token_hex(32)
+            now_dt = datetime.now(UTC)
+            expires_dt = now_dt + timedelta(hours=1)
+            now_iso = now_dt.isoformat()
+            expires_iso = expires_dt.isoformat()
+
+            conn.execute(
+                """
+                INSERT INTO password_reset_tokens (token, userId, email, expiresAt, usedAt, createdAt)
+                VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (token, user["id"], user["email"], expires_iso, now_iso),
+            )
+            conn.commit()
+            return {
+                "token": token,
+                "userId": user["id"],
+                "email": user["email"],
+                "expiresAt": expires_iso,
+                "createdAt": now_iso,
+            }
+
+    def validate_password_reset_token(self, token: str) -> dict[str, Any]:
+        if not token or not token.strip():
+            raise ValueError("Invalid or expired password reset token.")
+        clean_token = token.strip()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT token, userId, email, expiresAt, usedAt FROM password_reset_tokens WHERE token = ? LIMIT 1",
+                (clean_token,),
+            ).fetchone()
+            if not row:
+                raise ValueError("Invalid or expired password reset token.")
+            if row["usedAt"] is not None:
+                raise ValueError("This password reset token has already been used.")
+
+            expires_at = datetime.fromisoformat(row["expiresAt"])
+            if expires_at < datetime.now(UTC):
+                raise ValueError("This password reset token has expired.")
+
+            return {
+                "token": row["token"],
+                "userId": row["userId"],
+                "email": row["email"],
+                "expiresAt": row["expiresAt"],
+            }
+
+    def reset_password_with_token(self, token: str, new_password: str) -> None:
+        if len(new_password or "") < 8:
+            raise ValueError("New password must be at least 8 characters.")
+        token_info = self.validate_password_reset_token(token)
+        now_iso = utcnow_iso()
+        password_hash, password_salt = hash_password(new_password)
+
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE app_users SET passwordHash = ?, passwordSalt = ?, updatedAt = ? WHERE id = ?",
+                (password_hash, password_salt, now_iso, token_info["userId"]),
+            )
+            conn.execute(
+                "UPDATE password_reset_tokens SET usedAt = ? WHERE token = ?",
+                (now_iso, token_info["token"]),
+            )
+            conn.execute(
+                "DELETE FROM app_sessions WHERE userId = ?",
+                (token_info["userId"],),
             )
             conn.commit()
 
