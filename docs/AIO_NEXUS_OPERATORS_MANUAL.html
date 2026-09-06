@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIO NEXUS v2 // OPERATOR'S MANUAL</title>
+    <style>
+        :root {
+            --bg: #070708;
+            --surface: #111318;
+            --surface-elevated: #181b22;
+            --border: #1E2024;
+            --border-accent: #0e7490;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.15);
+            --code-bg: #0d1117;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+
+        header {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 24px;
+            margin-bottom: 40px;
+        }
+
+        .header-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #fff;
+            border-left: 4px solid var(--accent);
+            padding-left: 12px;
+            margin-top: 48px;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-top: 24px;
+            margin-bottom: 10px;
+        }
+
+        p, li {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .panel {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .panel-accent {
+            border-left: 3px solid var(--accent);
+        }
+
+        pre, code {
+            font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            color: #38bdf8;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        pre code {
+            background: none;
+            color: #e2e8f0;
+            padding: 0;
+            border: none;
+            font-size: 13px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 13px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: var(--surface-elevated);
+            color: var(--text-primary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-cyan {
+            background-color: rgba(6, 182, 212, 0.15);
+            color: #22d3ee;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        .badge-green {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 18px;
+        }
+
+        .card h4 {
+            margin: 0 0 8px 0;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        footer {
+            border-top: 1px solid var(--border);
+            margin-top: 60px;
+            padding-top: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-meta">
+                <span>AIO NEXUS APPLIANCE // OPERATOR'S MANUAL</span>
+                <span>VERSION 2.0.0</span>
+            </div>
+            <h1>AIO Nexus Operator's Guide</h1>
+            <p class="subtitle">The Zero-Cloud-Rent Local Neural Appliance for Solo Operators (Podcasters, Tech Directors, Video Editors & Designers)</p>
+        </header>
+
+        <section class="panel panel-accent">
+            <h3 style="margin-top: 0;">Philosophy: Zero Cloud Rent & Total Data Sovereignty</h3>
+            <p>AIO Nexus operates entirely on your local hardware. There are no monthly SaaS user seats, no per-token external AI billing, and no remote database dependencies. All AI reasoning is handled via local Ollama models, all video is rendered locally with Remotion, and speech is transcribed locally with Vosk/Whisper.</p>
+        </section>
+
+        <h2>1. System Quickstart & Daily Boot</h2>
+        <p>To launch the appliance, run the 1-click startup script from your terminal or double-click:</p>
+        <pre><code>cd d:\AIOCRM
+start-nexus.bat</code></pre>
+        <p>The launcher performs system pre-flight checks, verifies local Ollama status, boots the FastAPI backend (:8001), verifies health, starts the Vite React frontend (:3000), and automatically opens your browser.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Surface</th>
+                    <th>URL</th>
+                    <th>Access Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Desktop Cockpit</strong></td>
+                    <td><code>http://localhost:3000</code></td>
+                    <td>Full studio control center with deep canvas tooling</td>
+                </tr>
+                <tr>
+                    <td><strong>Mobile / Pocket</strong></td>
+                    <td><code>http://localhost:3000?view=pocket</code></td>
+                    <td>Touch-optimized mobile cockpit for phone/tablet</td>
+                </tr>
+                <tr>
+                    <td><strong>Backend REST API</strong></td>
+                    <td><code>http://localhost:8001/api/health</code></td>
+                    <td>System telemetry and diagnostics</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="panel">
+            <h4>Default Operator Credentials</h4>
+            <p><strong>Email:</strong> <code>support@aiocrm.org</code> (or <code>admin@aio.com</code>)<br>
+            <strong>Password:</strong> <code>aioadmin123</code></p>
+        </div>
+
+        <h2>2. Workstation Modules</h2>
+        <div class="grid-2">
+            <div class="card">
+                <h4>🧠 Cortex (Brain)</h4>
+                <p>Knowledge vault with dense local vector embeddings (<code>nomic-embed-text</code>). Ingest transcripts, briefs, and notes with instant semantic retrieval.</p>
+            </div>
+            <div class="card">
+                <h4>🎬 Media Studio</h4>
+                <p>Local Remotion video renderer, waveform trimmer, and BOOM recording studio for high-resolution video snippets and audiograms.</p>
+            </div>
+            <div class="card">
+                <h4>⚡ Flows (Automation)</h4>
+                <p>Visual canvas for building multi-step execution graphs linking triggers, specialist agents, and output channels.</p>
+            </div>
+            <div class="card">
+                <h4>📱 Pocket Cockpit</h4>
+                <p>Standalone mobile portal for on-set directors: 1-tap approval clearances, Charlie voice directives, and live cue sheets.</p>
+            </div>
+        </div>
+
+        <h2>3. Turnkey SOB Blueprints</h2>
+        <div class="panel">
+            <h3>Blueprint A: Solo Podcaster & Creative Studio (<code>podcast_creator</code>)</h3>
+            <ul>
+                <li><strong>Guest Intake:</strong> Custom form captures headshot, bio, and discussion topics.</li>
+                <li><strong>Local Speech-to-Text:</strong> Offline transcription generates synchronized subtitles.</li>
+                <li><strong>Content Extraction:</strong> Echo extracts soundbites; Archer writes show notes and timestamps.</li>
+                <li><strong>Video Generation:</strong> Remotion renders vertical audiogram clips.</li>
+                <li><strong>Distribution:</strong> PostBot queues 5 social media announcements ready for 1-tap clearance.</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h3>Blueprint B: Live Event Technical Director (<code>tech_director</code>)</h3>
+            <ul>
+                <li><strong>Run-of-Show Synthesis:</strong> Atlas compiles production rider into a synchronized cue timeline.</li>
+                <li><strong>On-Set Pocket Viewer:</strong> High-contrast OLED live display with segment duration timers.</li>
+                <li><strong>GO Trigger:</strong> Instant advance button to signal next cue to stage crew.</li>
+                <li><strong>Contingency Loops:</strong> 1-click trigger to stage emergency video loop if presenter goes overtime.</li>
+            </ul>
+        </div>
+
+        <h2>4. Mobile "Pocket Cockpit" (Away From Desk)</h2>
+        <p>When you leave your main studio desk, open <code>http://&lt;your-ip&gt;:3000?view=pocket</code> on your phone or tablet:</p>
+        <ul>
+            <li><strong>Approvals Queue:</strong> Clear paused AI execution runs with a swipe or tap.</li>
+            <li><strong>Charlie Voice Directives:</strong> Push-to-talk voice interface for dictating commands while walking or driving.</li>
+            <li><strong>Run-of-Show Cues:</strong> High-contrast live cue sheet with live countdown timer.</li>
+            <li><strong>Quick Vault Capture:</strong> Instantly snap photos, record voice memos, or jot notes straight into Cortex.</li>
+        </ul>
+
+        <h2>5. Remote Phone Access (Tailscale WireGuard)</h2>
+        <p>To securely access your studio appliance from anywhere in the world without exposing router ports:</p>
+        <ol>
+            <li>Install <a href="https://tailscale.com" style="color: var(--accent);">Tailscale</a> on your studio PC/Mac and on your phone.</li>
+            <li>Sign into the same account on both devices.</li>
+            <li>On your phone, open Safari or Chrome to: <code>http://&lt;studio-tailscale-ip&gt;:3000?view=pocket</code>.</li>
+            <li>Tap <strong>Add to Home Screen</strong> to install the standalone mobile app.</li>
+        </ol>
+
+        <h2>6. Backups & Data Sovereignty</h2>
+        <p>Your data lives exclusively in <code>backend/data/</code>. To backup your entire business appliance:</p>
+        <pre><code>xcopy /E /I /H /Y d:\AIOCRM\backend\data d:\Backups\AIOCRM-data</code></pre>
+        <p>To restore on any PC or Mac, paste the folder and run <code>start-nexus.bat</code>.</p>
+
+        <footer>
+            <span>AIO NEXUS v2 // INDUSTRIAL OPERATION MANUAL</span>
+            <span>ZERO CLOUD RENT // LOCAL FIRST</span>
+        </footer>
+    </div>
+</body>
+</html>
