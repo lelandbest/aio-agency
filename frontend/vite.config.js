@@ -62,6 +62,10 @@ export default defineConfig(async () => {
       react(),
       VitePWA({
         registerType: "autoUpdate",
+        injectRegister: null, // Disables implicit script injection into HTML; controlled explicitly via src/services/pwaRegister.js
+        devOptions: {
+          enabled: false, // Guarantees Service Worker is never compiled or served during development
+        },
         manifest: {
           name: "AIO Agency",
           short_name: "AIO",
@@ -85,7 +89,13 @@ export default defineConfig(async () => {
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
           navigateFallback: "index.html",
-          runtimeCaching: [],
+          navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/oauth\//, /^\/health/],
+          runtimeCaching: [
+            {
+              urlPattern: /^\/api\//,
+              handler: "NetworkOnly",
+            },
+          ],
         },
       }),
     ],

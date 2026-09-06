@@ -1,0 +1,229 @@
+# AIO CRM Nexus – Service Worker / PWA Architecture Review
+
+You are performing a repository-aware architecture review. Do **not** make assumptions or apply changes until you have verified them from the codebase.
+
+## Objective
+
+Determine whether our implementation of Service Workers and the Vite PWA plugin is architecturally correct for this project, whether Service Workers should exist during development at all, and whether our current implementation is causing unnecessary complexity or stale state.
+
+This is **not** simply a bug fix.
+
+I want an architectural recommendation based on the actual repository.
+
+---
+
+## Project Context
+
+This project is AIO CRM Nexus.
+
+Characteristics:
+
+* Vite frontend
+* React
+* FastAPI backend
+* Local desktop development
+* Frequent branch switching
+* Constant hot reload
+* Rapid UI iteration
+* Authentication
+* API-heavy application
+* ReactFlow interfaces
+* Future Tauri packaging
+* Multi-agent execution platform
+
+Because of the development style, stale browser caches or stale service workers are a significant concern.
+
+---
+
+## Your Tasks
+
+### 1. Inventory
+
+Locate every Service Worker or PWA-related component, including but not limited to:
+
+* vite-plugin-pwa
+* VitePWA configuration
+* registerSW()
+* virtual:pwa-register
+* navigator.serviceWorker.register()
+* sw.ts
+* sw.js
+* workbox
+* injectManifest
+* generateSW
+* manifest configuration
+* offline support
+* cache strategies
+* update strategies
+
+Document every location found.
+
+---
+
+### 2. Determine Current Behavior
+
+Explain exactly:
+
+* when the Service Worker is registered
+* under what conditions it registers
+* whether it runs in development
+* whether it only runs after production build
+* how Vite dev server behaves
+* whether devOptions is configured
+* whether registration is conditional
+* whether registration is automatic
+
+Do not speculate.
+
+Reference the actual code.
+
+---
+
+### 3. Verify Browser Behavior
+
+Determine whether the observed
+
+ServiceWorker registration failed (404)
+
+is expected behavior from the current configuration or evidence of a misconfiguration.
+
+Explain:
+
+* why the browser requests /sw.js
+* where that request originates
+* whether the request is intentional
+* whether it should happen during development
+
+---
+
+### 4. Evaluate Development Experience
+
+Determine whether Service Workers provide any benefit during development for this repository.
+
+Specifically consider:
+
+* hot reload
+* Vite HMR
+* authentication
+* cached API responses
+* stale JS bundles
+* stale CSS
+* stale React state
+* stale route manifests
+* debugging difficulty
+* branch switching
+* switching Git commits
+* local FastAPI changes
+
+If Service Workers introduce more problems than value during development, explain why.
+
+---
+
+### 5. Evaluate Production
+
+Determine whether Service Workers are appropriate for production.
+
+Evaluate:
+
+* offline capability
+* caching strategy
+* update strategy
+* installability
+* background updates
+* asset caching
+* API caching
+* user experience
+
+If the current production configuration is appropriate, explain why.
+
+If not, recommend improvements.
+
+---
+
+### 6. Review Registration Logic
+
+Inspect how registration occurs.
+
+Determine whether registration is:
+
+* automatic
+* manual
+* duplicated
+* conditional
+* environment-aware
+
+If registration should only occur in production, identify the cleanest implementation.
+
+---
+
+### 7. Review vite.config.*
+
+Inspect the Vite PWA configuration.
+
+Evaluate whether:
+
+* devOptions.enabled should be false
+* autoUpdate is appropriate
+* injectRegister is appropriate
+* registerType is appropriate
+* generateSW vs injectManifest is the better architecture
+
+Explain the tradeoffs.
+
+---
+
+### 8. Search for Hidden Problems
+
+Look for:
+
+* duplicate registrations
+* legacy PWA code
+* dead Service Worker files
+* unused manifests
+* stale cache names
+* multiple Workbox versions
+* incorrect asset paths
+* root path issues
+* base path issues
+* Tauri compatibility concerns
+
+---
+
+### 9. Final Recommendation
+
+Conclude with one of the following:
+
+A.
+Current implementation is correct.
+
+B.
+Keep Service Workers but disable them entirely during development.
+
+C.
+Refactor the implementation.
+
+D.
+Remove PWA support entirely.
+
+Support your recommendation with evidence from the repository.
+
+---
+
+## Deliverables
+
+Produce:
+
+1. Repository findings.
+2. Architecture review.
+3. Risks.
+4. Benefits.
+5. Recommended implementation.
+6. Exact files requiring changes.
+7. Minimal patch plan.
+8. Confidence level for each recommendation.
+
+Do not modify code during this review.
+
+Do not guess.
+
+Use only evidence found within the repository and explain your reasoning for every conclusion.

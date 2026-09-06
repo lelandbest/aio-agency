@@ -9,6 +9,14 @@ import {
 import { BrainIcon } from '../../components/ui/icons';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { BrainService } from '../../services/brain.service';
+import { AiService } from '../../services/ai.service';
+import { MediaService } from '../../services/media.service';
+import { AnalyticsService } from '../../services/analytics.service';
+import BrainGraphPanel from './BrainGraphPanel';
+import TabbedBrainFormModal from './TabbedBrainFormModal';
+import { INSIGHT_REPORTS } from './reports';
+import { useBrand } from '../../contexts/BrandContext';
 
 const CATEGORIES = [
   { id: 'b-doc', label: 'DOC', bin: 'DOC', dbCategory: 'document', icon: FileText, types: ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt'] },
@@ -39,14 +47,6 @@ const COMMS_TOOLBAR_GHOST = 'rounded-[var(--radius-card)] border border-[var(--c
 const APPLIANCE_CHASSIS = 'rounded-[var(--radius-panel)] border border-white/5 bg-[#0a0a0c] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),inset_0_-1px_1px_rgba(0,0,0,0.6),0_12px_32px_rgba(0,0,0,0.6)] relative overflow-hidden';
 const APPLIANCE_CONTROL = 'bg-black/40 border border-white/5 rounded-[var(--radius-card)] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] hover:bg-black/60 transition-all';
 const APPLIANCE_INNER_SHADOW = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.8),0_1px_1px_rgba(255,255,255,0.02)]';
-import { BrainService } from '../../services/brain.service';
-import { AiService } from '../../services/ai.service';
-import { MediaService } from '../../services/media.service';
-import { AnalyticsService } from '../../services/analytics.service';
-import BrainGraphPanel from './BrainGraphPanel';
-import TabbedBrainFormModal from './TabbedBrainFormModal';
-import { INSIGHT_REPORTS } from './reports';
-import { useBrand } from '../../contexts/BrandContext';
 
 const EMPTY_PROFILE = {
   companyName: '',

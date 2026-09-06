@@ -2254,6 +2254,16 @@ class AuthStore:
                 """,
                 (tenant_id,),
             ).fetchone()
+            if not row:
+                row = conn.execute(
+                    """
+                    SELECT *
+                    FROM ai_provider_configs
+                    WHERE enabled = 1
+                    ORDER BY isDefault DESC, updatedAt DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
         return self._ai_provider_record(row, include_secret=True) if row else None
 
     def get_ai_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:

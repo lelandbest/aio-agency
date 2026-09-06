@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { registerServiceWorker } from './services/pwaRegister'
+
+// Register or unregister Service Worker based on deployment profile
+registerServiceWorker();
 
 const root = document.getElementById('root')
 if (!root) {

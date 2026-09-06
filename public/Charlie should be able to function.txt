@@ -1,0 +1,170 @@
+Charlie should be able to function as an S.O.B.s confidant in business within this system We will begin to build her knowledge base of intel thru Cortex so she'll need determinist access/behaviors to operate with the brain in her workflow ie. Charlie >Brain>Alpha>Agent>Alpha (who can also access brain)>Charlie>User.  So the dilemma becomes who do we hand off single source of truth to exactly? Charlie for just review/consult/librarian/QA, Alpha (Intel/data/SoPs/QC? I'm just laying out intent.
+
+
+Use these rules.
+
+CTRL hold:
+
+Keep the current 1s press-and-hold behavior exactly as-is.
+That path stays for quick command/conversation capture.
+Do not repurpose it for editor dictation.
+Click-to-hold mic:
+
+Treat this as explicit dictation intent.
+In this mode, speech goes to the transcription editor only.
+Do not send dictation-mode speech to Charlie unless the user explicitly exits dictation mode.
+Normal non-command speech:
+
+If it is not an exact command, route it to Charlie.
+Charlie remains the daily-ops conversational layer.
+Command grammar stays simple and exact to keep native actions deterministic.
+On source of truth: do not give that to Charlie or Alpha. Give it to Brain.
+
+Clean authority split:
+
+Brain = canonical truth for knowledge, SOPs, notes, transcripts, intel artifacts
+Charlie = interface layer: consult, review, librarian, QA, retrieval, user-facing conversation
+Alpha = execution/intel operator: synthesis, delegation, tasking, agent coordination
+Agents = bounded workers, never source of truth
+So the workflow should be:
+
+Charlie -> Brain for retrieval/context
+Charlie -> Alpha when work or synthesis is needed
+Alpha -> Agent(s) for execution
+Agent(s) -> Alpha for consolidation
+Alpha -> Brain for approved persisted outputs
+Alpha -> Charlie for user-facing return
+Charlie -> User
+Key rule:
+
+Charlie can read Brain freely.
+Charlie should not become the canonical owner of facts.
+Alpha should not become the canonical owner either.
+Brain owns truth; Charlie owns interaction; Alpha owns execution.
+If you want, next I can turn this into a concrete mode contract for VTT:
+
+command
+conversation
+dictation
+with entry/exit rules and write targets.
+
+Brain is not an agent, it's an object accessible db for all constructs within the system.
+
+
+Correct. Then treat Brain as the canonical knowledge object/store, not an actor.
+
+That makes the authority model cleaner:
+
+Brain = system knowledge object, canonical persistence layer
+Charlie = conversational interface and retrieval consumer
+Alpha = orchestrator/operator
+Agents = task executors
+User = authority for intent and approval where required
+So the flow should be described as:
+
+Charlie -> Brain read/query
+Charlie -> Alpha handoff for execution when needed
+Alpha -> Brain read/write as part of orchestration
+Agent -> Brain only if explicitly allowed by Alpha workflow, otherwise return to Alpha first
+Charlie -> User response layer
+Single source of truth:
+
+Brain for persisted knowledge
+not Charlie
+not Alpha
+not individual agents
+Behaviorally:
+
+Charlie is interpreter, guide, reviewer, librarian, and confidant
+Alpha is planner/operator
+Brain is the object both depend on for stable truth
+Your intent maps well to:
+
+Charlie: consult, review, retrieval, QA, business confidant
+Alpha: intel operations, synthesis, task routing, procedural execution
+Brain: persistent knowledge substrate
+That distinction is the right one to preserve before we wire more behavior into VTT.
+
+
+Brain = Cortex
+
+
+Then the canonical naming should be:
+
+Cortex = canonical knowledge object / persistence substrate
+Charlie = conversational interface
+Alpha = orchestration/execution authority
+Agents = bounded workers
+So the stable flow becomes:
+
+Charlie -> Cortex for read/retrieval
+Charlie -> Alpha for action/orchestration
+Alpha -> Cortex for read/write
+Agents -> Alpha by default
+Alpha -> Charlie -> User for returned outcome
+Single source of truth:
+
+Cortex
+Not:
+
+Charlie
+Alpha
+any worker agent
+That also means any future “Charlie knowledge” is really Charlie using Cortex, not Charlie owning knowledge.
+
+
+Alpha is also playing a QC role on agents returned content
+
+
+Then Alpha’s role should be defined as:
+
+orchestrator
+execution authority
+QC gate on agent output before it is trusted, persisted, or returned upstream
+That gives you this contract:
+
+Cortex = canonical knowledge object
+Charlie = user-facing conversational layer, retrieval, consult, review presentation
+Alpha = orchestration, synthesis, delegation, QC, approval gate
+Agents = specialist workers, not authorities
+Operational flow:
+
+Charlie -> Cortex for retrieval/context
+Charlie -> Alpha when action, synthesis, or validation is needed
+Alpha -> Agent
+Agent -> Alpha
+Alpha performs QC
+Alpha -> Cortex only after QC if persistence is warranted
+Alpha -> Charlie
+Charlie -> User
+That means:
+
+agent output is provisional
+Alpha output is reviewed/orchestrated output
+Cortex stores accepted truth/artifacts
+Charlie presents and consults against that system state
+That is a coherent authority stack.
+
+
+you nailed it
+
+
+Then that should be treated as the operating model going forward:
+
+Cortex is canonical truth
+Charlie is interface
+Alpha is orchestration plus QC gate
+Agents are provisional workers
+For VTT behavior, that implies:
+
+exact commands stay native and deterministic
+normal non-command speech goes to Charlie
+dictation mode writes to the editor/Cortex workflow, not Charlie conversation
+anything agent-produced that matters should pass through Alpha before being trusted or persisted
+When you want, I can turn this into a concrete implementation contract for the three interaction modes without changing behavior yet.
+
+
+go for implementation, cut clean we're low on context/tokens make it happen.
+
+
+
