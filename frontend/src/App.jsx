@@ -147,8 +147,12 @@ const readNavigationStateFromUrl = () => {
   }
 
   const params = new URLSearchParams(window.location.search);
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+  const initialModule = normalizeModuleId(params.get('view') || params.get('module'))
+    || (isMobileViewport ? 'pocket' : DEFAULT_ACTIVE_MODULE);
+
   return {
-    activeModule: normalizeModuleId(params.get('module')) || DEFAULT_ACTIVE_MODULE,
+    activeModule: initialModule,
     flowId: normalizeNavigationValue(params.get('flowId')),
     flowAction: normalizeNavigationValue(params.get('action')),
     flowIntent: normalizeNavigationValue(params.get('intent')),
@@ -354,7 +358,7 @@ const App = () => {
   const hasPersistedMenuUpgradedRef = useRef(new Set());
   const sessionTenantIdRef = useRef(session?.tenant?.id);
 
-  const fullscreenModules = [];
+  const fullscreenModules = ['pocket'];
   const isFullscreen = fullscreenModules.includes(effectiveActiveModule);
 
   useEffect(() => {
@@ -913,7 +917,7 @@ const App = () => {
                               />
                             )}
 
-                            <div className="flex-1 min-h-0 overflow-hidden bg-black p-2">
+                            <div className={`flex-1 min-h-0 overflow-hidden ${isFullscreen ? 'p-0 bg-neutral-950' : 'bg-black p-2'}`}>
                               <Suspense key={effectiveActiveModule} fallback={
                                 <div className="h-full flex items-center justify-center">
                                   <LoadingSpinner size="lg" message="Loading module..." />
