@@ -67,22 +67,24 @@ export default defineConfig(async () => {
           enabled: false, // Guarantees Service Worker is never compiled or served during development
         },
         manifest: {
-          name: "AIO Agency",
-          short_name: "AIO",
+          name: "AIO Nexus",
+          short_name: "AIO Nexus",
           start_url: "/",
           display: "standalone",
           background_color: "#070708",
           theme_color: "#070708",
           icons: [
             {
-              src: "aio-button-192px.png",
+              src: "/aio-button-192px.png",
               sizes: "192x192",
               type: "image/png",
+              purpose: "any maskable",
             },
             {
-              src: "aio-button-512px.png",
+              src: "/aio-button-512px.png",
               sizes: "512x512",
               type: "image/png",
+              purpose: "any maskable",
             },
           ],
         },

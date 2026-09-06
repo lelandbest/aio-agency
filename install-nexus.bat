@@ -92,14 +92,17 @@ if %errorlevel% neq 0 (
 :: 6. Create Desktop Shortcut
 echo.
 echo [6/6] Creating Desktop Shortcut...
-set "SHORTCUT_PATH=%USERPROFILE%\Desktop\AIO Nexus Appliance.lnk"
+if exist "%USERPROFILE%\Desktop\AIO Nexus Appliance.lnk" del /f /q "%USERPROFILE%\Desktop\AIO Nexus Appliance.lnk"
+if exist "%USERPROFILE%\Desktop\AIO Agency.lnk" del /f /q "%USERPROFILE%\Desktop\AIO Agency.lnk"
+set "SHORTCUT_PATH=%USERPROFILE%\Desktop\AIO Nexus.lnk"
+if exist "%SHORTCUT_PATH%" del /f /q "%SHORTCUT_PATH%"
 set "TARGET_BAT=%ROOT_DIR%\run-appliance.bat"
 set "ICON_FILE=%ROOT_DIR%\frontend\public\favicon.ico"
 
-powershell -ExecutionPolicy Bypass -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%SHORTCUT_PATH%'); $s.TargetPath = '%TARGET_BAT%'; $s.WorkingDirectory = '%ROOT_DIR%'; $s.Description = 'AIO Nexus v2 - Autonomous Single Operator Business Appliance'; if (Test-Path '%ICON_FILE%') { $s.IconLocation = '%ICON_FILE%' }; $s.Save();"
+powershell -ExecutionPolicy Bypass -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%SHORTCUT_PATH%'); $s.TargetPath = '%TARGET_BAT%'; $s.WorkingDirectory = '%ROOT_DIR%'; $s.Arguments = ''; $s.Description = 'AIO Nexus - Autonomous Single Operator Business Appliance'; if (Test-Path '%ICON_FILE%') { $s.IconLocation = '%ICON_FILE%' }; $s.Save();"
 
 if exist "%SHORTCUT_PATH%" (
-    echo [OK] Desktop Shortcut created: "AIO Nexus Appliance"
+    echo [OK] Desktop Shortcut created: "AIO Nexus"
 ) else (
     echo [WARN] Could not create Desktop shortcut automatically. You can run run-appliance.bat directly.
 )
@@ -109,9 +112,9 @@ echo ========================================================================
 echo                 INSTALLATION COMPLETE!
 echo ========================================================================
 echo.
-echo   You are ready to run AIO Nexus v2 as a standalone appliance!
+echo   You are ready to run AIO Nexus as a standalone appliance!
 echo.
-echo   * Double-click the "AIO Nexus Appliance" shortcut on your Desktop, OR
+echo   * Double-click the "AIO Nexus" shortcut on your Desktop, OR
 echo   * Run run-appliance.bat in this folder.
 echo.
 echo   * Appliance Cockpit:  http://localhost:8001
