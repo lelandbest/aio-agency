@@ -64,7 +64,19 @@ echo.
 echo [3/3] Starting Vite React Frontend on port 3000...
 start "AIO Nexus Frontend (:3000)" cmd /k "cd /d "%~dp0frontend" && npm run dev -- --host 0.0.0.0 --port 3000"
 
-timeout /t 2 /nobreak >nul
+echo Waiting for Frontend to become ready...
+set FRONTEND_READY=0
+for /l %%i in (1,1,20) do (
+    powershell -Command "$status = try { (Invoke-WebRequest -Uri 'http://localhost:3000' -TimeoutSec 1 -UseBasicParsing).StatusCode } catch { 0 }; if ($status -eq 200) { exit 0 } else { exit 1 }" >nul 2>nul
+    if !errorlevel! equ 0 (
+        set FRONTEND_READY=1
+        goto :frontend_ready
+    )
+    timeout /t 1 /nobreak >nul
+)
+
+:frontend_ready
+echo [OK] Frontend is ready and listening on http://localhost:3000
 
 echo.
 echo ========================================================================
@@ -75,6 +87,14 @@ echo   * Desktop Cockpit:    http://localhost:3000
 echo   * Mobile / Pocket:    http://localhost:3000?view=pocket
 echo   * Backend REST API:   http://localhost:8001/api/health
 echo.
-echo Press any key to open the browser or close this window.
-pause >nul
+echo   * Default Login:      support@aiocrm.org
+echo   * Default Password:   aioadmin123
+echo.
+echo Launching browser to http://localhost:3000...
 start http://localhost:3000
+
+echo.
+echo The appliance is running in background windows.
+echo Keep this window open or minimize it.
+echo Press any key to exit this launcher window...
+pause >nul
