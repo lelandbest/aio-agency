@@ -17,8 +17,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from backend.app import app
 from backend.deps import auth_store, provider
-from backend.routes.ai import ai_command
+from backend.routes.ai import ai_command, resolve_ai_run_routing
 from backend.routes.signals import execute_signal
+from backend.flow_graph_utils import build_flow_execution_steps, resolve_flow_trigger_targets
 
 __all__ = [
     "app",
@@ -26,6 +27,9 @@ __all__ = [
     "provider",
     "ai_command",
     "execute_signal",
+    "resolve_ai_run_routing",
+    "resolve_flow_trigger_targets",
+    "build_flow_execution_steps",
 ]
 
 if __name__ == "__main__":

@@ -7714,7 +7714,10 @@ class SQLiteProvider(BaseProvider):
             )
 
         try:
-            from orchestration import emit_system_event
+            try:
+                from backend.orchestration import emit_system_event
+            except ImportError:
+                from orchestration import emit_system_event
             emit_system_event(
                 self,
                 {
@@ -7732,8 +7735,36 @@ class SQLiteProvider(BaseProvider):
                 tenant={"id": self._tenantId()},
                 provider_config=None,
             )
-        except Exception:
-            pass
+        except Exception as emit_err:
+            logger.warning("Failed to emit form_submitted event: %s", emit_err)
+
+        # Direct outbound webhook dispatch if configured on form settings (e.g. Make.com, n8n)
+        webhook_url = (form.get("settings") or {}).get("webhookUrl")
+        if webhook_url and clean_text(webhook_url):
+            try:
+                import urllib.request as urlrequest
+                hook_payload = json.dumps({
+                    "event": "form_submission",
+                    "formId": form_id,
+                    "formName": form.get("name"),
+                    "formSlug": form.get("slug"),
+                    "submissionId": submission_id,
+                    "contactId": contact_id,
+                    "formData": form_data,
+                    "submittedAt": utcnow(),
+                }).encode("utf-8")
+                req = urlrequest.Request(
+                    clean_text(webhook_url),
+                    data=hook_payload,
+                    headers={"Content-Type": "application/json", "User-Agent": "AIO-Nexus-Appliance/2.0"},
+                    method="POST",
+                )
+                try:
+                    urlrequest.urlopen(req, timeout=5)
+                except Exception as wex:
+                    logger.warning("Outbound form webhook delivery failed: %s", wex)
+            except Exception as hook_err:
+                logger.warning("Error dispatching form webhook: %s", hook_err)
 
         return {"success": True, "contactId": contact_id, "created": created_contact, "submissionId": submission_id}
 

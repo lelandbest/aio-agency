@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 # Ensure root is in sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -330,6 +331,40 @@ app.include_router(ai_router)
 app.include_router(signals_router)
 app.include_router(system_router)
 app.include_router(pocket_router)
+
+
+# ── Frontend Static & SPA Serving (Appliance Mode) ───────────────────────────
+
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+
+if FRONTEND_DIST.is_dir():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # Let API routes, OpenAPI docs, and schema 404 naturally if unmatched
+        if (
+            full_path.startswith("api/")
+            or full_path == "api"
+            or full_path.startswith("docs")
+            or full_path.startswith("redoc")
+            or full_path.startswith("openapi.json")
+        ):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        # Check if the requested path matches an actual file in dist (favicon, manifest, sw.js, images, pdfs, etc.)
+        if full_path:
+            candidate_file = FRONTEND_DIST / full_path
+            if candidate_file.is_file():
+                return FileResponse(candidate_file)
+
+        # Fallback to SPA index.html for client-side routing
+        index_file = FRONTEND_DIST / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Frontend distribution bundle not found")
 
 
 # ── Launcher Execution ───────────────────────────────────────────────────────

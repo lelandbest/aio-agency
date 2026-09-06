@@ -388,9 +388,17 @@ def emit_system_event(
         return []
 
     try:
-        import server
-    except Exception as exc:
-        logger.error("Unable to import server for system event dispatch: %s", exc)
+        from backend.flow_graph_utils import resolve_flow_trigger_targets, build_flow_execution_steps
+    except ImportError:
+        try:
+            from flow_graph_utils import resolve_flow_trigger_targets, build_flow_execution_steps
+        except ImportError:
+            import server
+            resolve_flow_trigger_targets = getattr(server, "resolve_flow_trigger_targets", None)
+            build_flow_execution_steps = getattr(server, "build_flow_execution_steps", None)
+
+    if not resolve_flow_trigger_targets or not build_flow_execution_steps:
+        logger.error("Flow graph utils not available for system event dispatch")
         return []
 
     dispatched_runs: list[dict[str, Any]] = []
@@ -406,10 +414,10 @@ def emit_system_event(
         flow_status = str(flow.get("status") or "").strip().lower()
         if flow_status != "active":
             continue
-        trigger_targets = server.resolve_flow_trigger_targets(flow, event_type)
+        trigger_targets = resolve_flow_trigger_targets(flow, event_type)
         if not trigger_targets:
             continue
-        raw_steps, flow_agent_chain = server.build_flow_execution_steps(
+        raw_steps, flow_agent_chain = build_flow_execution_steps(
             flow,
             f"System event {event_type}",
             "DELTA",
@@ -5000,7 +5008,14 @@ class ExecutionEngine:
         return next_context
 
     def run(self, raw_steps: list[dict[str, Any]], mode: str, command: str, context: dict[str, Any], actor: dict[str, Any], tenant: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
-        import server
+        try:
+            from backend.routes.ai import resolve_ai_run_routing
+        except ImportError:
+            try:
+                from routes.ai import resolve_ai_run_routing
+            except ImportError:
+                import server
+                resolve_ai_run_routing = getattr(server, "resolve_ai_run_routing")
         from backend.adaptive_routing import AdaptiveRouting
         from backend.failure_analysis import classify_failure
         from backend.recovery_engine import RecoveryEngine
@@ -5042,7 +5057,7 @@ class ExecutionEngine:
                     s["id"] = s.get("stepId") or f"step-{unique_suffix()}"
 
             artifacts = []
-            routing = server.resolve_ai_run_routing(
+            routing = resolve_ai_run_routing(
                 module=context.get("module", "comms"),
                 surface=context.get("surface", "chat"),
                 field=context.get("field", ""),

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIO NEXUS v2 // FORMS, WORKFLOWS & INTEGRATIONS GUIDE</title>
+    <style>
+        :root {
+            --bg: #070708;
+            --surface: #111318;
+            --surface-elevated: #181b22;
+            --border: #1E2024;
+            --border-accent: #0e7490;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.15);
+            --code-bg: #0d1117;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 960px;
+            width: 100%;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.02em;
+            color: #fff;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin: 40px 0 16px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent);
+            margin: 24px 0 12px 0;
+        }
+
+        p, li {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        ul, ol {
+            padding-left: 20px;
+            margin: 8px 0 16px 0;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: #38bdf8;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        code {
+            background: rgba(255,255,255,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12.5px;
+            color: #e2e8f0;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+
+        .card.accent-border {
+            border-left: 3px solid var(--accent);
+        }
+
+        .alert-tip {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-left: 4px solid var(--success);
+            padding: 14px 18px;
+            border-radius: 6px;
+            margin: 16px 0;
+            font-size: 13.5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 13.5px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--text-primary);
+            background: var(--surface);
+            font-weight: 600;
+        }
+
+        td {
+            color: var(--text-secondary);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="badge">Turnkey Integration Guide</div>
+        <h1>Forms, Workflows & External Integrations</h1>
+        <p class="subtitle">Website Ingress, Flow Automation, Make.com / n8n Webhooks & Secure Remote Tunneling</p>
+    </header>
+
+    <h2>1. Ingress & Egress Architecture</h2>
+    <p>AIO Nexus v2 operates as an autonomous local appliance. External landing pages (e.g. <code>goaio.us</code>) deliver submissions via a secure public tunnel directly into the local SQLite store, triggering internal flows and outbound webhooks to Make.com or n8n.</p>
+
+    <pre>
+[PUBLIC INTERNET]                 [SECURE INGRESS]            [LOCAL AIO NEXUS APPLIANCE (:8001)]
+Landing Page / Website           Tailscale Funnel / ngrok     FastAPI Single-Port Server
+┌──────────────────────┐         ┌────────────────┐          ┌────────────────────────────────┐
+│ HTML5 / React Form   │         │ Public HTTPS   │          │ Ingress Boundary               │
+│ - Contact Inquiries  │──POST──▶│ :443 -> :8001  │─────────▶│ POST /api/forms/by-slug/{slug} │
+│ - Podcast Intake     │         │ (TLS Ingress)  │          │ - Contact Dedup & Creation     │
+└──────────────────────┘         └────────────────┘          └───────────────┬────────────────┘
+                                                                             │
+                                                                             ▼
+[EXTERNAL AUTOMATIONS]           [OUTBOUND ADAPTERS]         ┌────────────────────────────────┐
+Make.com / n8n / Zapier          Direct JSON POST Webhooks   │ Orchestration Engine           │
+┌──────────────────────┐         ┌────────────────┐          │ - Trigger: form_submitted      │
+│ Make Scenario        │◀────────│ HTTP Dispatch  │◀─────────┤ - Auto-responder Email / SMS   │
+│ n8n Canvas Execution │         │ Token Parser   │          │ - Outbound http_request Node   │
+└──────────────────────┘         └────────────────┘          └────────────────────────────────┘
+    </pre>
+
+    <h2>2. Ingress Setup: Exposing Your Local Appliance</h2>
+    <div class="grid-2">
+        <div class="card accent-border">
+            <h3>Option A: Tailscale Funnel (Recommended)</h3>
+            <p>100% Free, permanent public HTTPS endpoint with automatic TLS certificates.</p>
+            <pre>tailscale funnel 8001</pre>
+            <p>Runs in background:</p>
+            <pre>tailscale funnel --bg 8001</pre>
+            <p>Public URL: <code>https://&lt;node&gt;.&lt;tailnet&gt;.ts.net/</code></p>
+        </div>
+        <div class="card accent-border">
+            <h3>Option B: ngrok (Instant Demos)</h3>
+            <p>Instant zero-config public forwarding URL for rapid live testing.</p>
+            <pre>ngrok http 8001</pre>
+            <p>Public URL: <code>https://&lt;subdomain&gt;.ngrok-free.app/</code></p>
+        </div>
+    </div>
+
+    <h2>3. Public Submission API Reference</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Endpoint</th>
+                <th>Method</th>
+                <th>Auth</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>/api/forms/by-slug/{slug}/submit</code></td>
+                <td>POST</td>
+                <td>Public</td>
+                <td>Primary submission endpoint using human-readable slug</td>
+            </tr>
+            <tr>
+                <td><code>/api/forms/{formId}/submit</code></td>
+                <td>POST</td>
+                <td>Public</td>
+                <td>Alternative submission endpoint using internal Form ID</td>
+            </tr>
+            <tr>
+                <td><code>/api/forms/by-slug/{slug}</code></td>
+                <td>GET</td>
+                <td>Public</td>
+                <td>Retrieve dynamic form schema, fields & styling</td>
+            </tr>
+            <tr>
+                <td><code>/api/health</code></td>
+                <td>GET</td>
+                <td>Public</td>
+                <td>Heartbeat monitor for tunnels & uptime checkers</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Request Payload Schema (JSON)</h3>
+    <pre>{
+  "formData": {
+    "first_name": "Leland",
+    "last_name": "Best",
+    "email": "leland@goaio.us",
+    "phone": "+1-555-0199",
+    "company": "AIO Agency",
+    "message": "Inquiry regarding podcast operations automation."
+  }
+}</pre>
+
+    <h3>Success Response (200 OK)</h3>
+    <pre>{
+  "success": true,
+  "contactId": "contact-0f9f5cf45d",
+  "created": true,
+  "submissionId": "submission-15d89012e3"
+}</pre>
+
+    <h2>4. Universal Website Embed Code (HTML + JavaScript)</h2>
+    <p>Copy and paste this snippet directly into Webflow, WordPress, Squarespace, or any static HTML site:</p>
+    <pre>&lt;!-- AIO Nexus Smart Intake Form --&gt;
+&lt;form id="aio-intake-form" style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;"&gt;
+  &lt;input type="text" id="first_name" placeholder="First Name *" required style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;" /&gt;
+  &lt;input type="email" id="email" placeholder="Email Address *" required style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;" /&gt;
+  &lt;input type="tel" id="phone" placeholder="Phone Number" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;" /&gt;
+  &lt;textarea id="message" rows="4" placeholder="How can we help?" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc;"&gt;&lt;/textarea&gt;
+  &lt;button type="submit" id="aio-btn" style="background: #2563eb; color: #fff; padding: 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;"&gt;Submit Inquiry&lt;/button&gt;
+  &lt;div id="aio-status" style="display: none; padding: 10px; border-radius: 6px; font-size: 14px; text-align: center;"&gt;&lt;/div&gt;
+&lt;/form&gt;
+
+&lt;script&gt;
+document.getElementById("aio-intake-form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById("aio-btn");
+  const status = document.getElementById("aio-status");
+  btn.disabled = true; btn.innerText = "Submitting...";
+
+  // REPLACE WITH YOUR TAILSCALE FUNNEL OR NGROK DOMAIN:
+  const APPLIANCE_URL = "https://my-studio-node.tailnet-xyz.ts.net";
+  const FORM_SLUG = "contact-us";
+
+  try {
+    const res = await fetch(`${APPLIANCE_URL}/api/forms/by-slug/${FORM_SLUG}/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        formData: {
+          first_name: document.getElementById("first_name").value,
+          email: document.getElementById("email").value,
+          phone: document.getElementById("phone").value,
+          message: document.getElementById("message").value
+        }
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      status.style.display = "block";
+      status.style.background = "#dcfce7";
+      status.style.color = "#166534";
+      status.innerText = "Thank you! Your submission has been received.";
+      this.reset();
+    } else {
+      throw new Error(data.detail || "Submission failed.");
+    }
+  } catch (err) {
+    status.style.display = "block";
+    status.style.background = "#fee2e2";
+    status.style.color = "#991b1b";
+    status.innerText = err.message;
+  } finally {
+    btn.disabled = false; btn.innerText = "Submit Inquiry";
+  }
+});
+&lt;/script&gt;</pre>
+
+    <h2>5. Make.com & n8n Integration (Outputs)</h2>
+    <div class="card accent-border">
+        <h3>Method 1: Direct Form Webhook (Zero Flow Setup)</h3>
+        <p>In AIO Nexus, open <strong>CRM</strong> &rarr; <strong>Forms</strong> &rarr; Edit Form &rarr; Click <strong>Settings</strong>.</p>
+        <p>Paste your Make.com or n8n webhook URL into the <strong>Webhook URL</strong> field.</p>
+        <p>Every submission is immediately dispatched with this complete payload:</p>
+        <pre>{
+  "event": "form_submission",
+  "formId": "form-6fa46f3f1c",
+  "formName": "Podcast Guest Intake",
+  "formSlug": "podcast-guest-intake",
+  "submissionId": "submission-15d89012e3",
+  "contactId": "contact-0f9f5cf45d",
+  "formData": {
+    "first_name": "Leland",
+    "email": "leland@goaio.us",
+    "message": "Automating podcast operations."
+  },
+  "submittedAt": "2026-09-06T22:16:24Z"
+}</pre>
+    </div>
+
+    <div class="card accent-border">
+        <h3>Method 2: Multi-Step Flow HTTP Request Node (Advanced)</h3>
+        <p>Open <strong>Flows</strong> &rarr; Add a Trigger node with event <code>form_submitted</code>.</p>
+        <p>Add an <code>http_request</code> node to send enriched variables:</p>
+        <ul>
+            <li><strong>Method:</strong> POST</li>
+            <li><strong>URL:</strong> <code>https://hook.eu2.make.com/...</code></li>
+            <li><strong>Body:</strong> <code>{"email": "{{form_data.email}}", "contactId": "{{contact_id}}"}</code></li>
+        </ul>
+    </div>
+
+    <h2>6. Standalone Appliance Desktop Quick-Start</h2>
+    <div class="card">
+        <p>To run AIO Nexus v2 outside development mode on your Windows desktop:</p>
+        <ol>
+            <li>Run <code>install-nexus.bat</code> once to configure your environment and create the Desktop shortcut.</li>
+            <li>Double-click <strong>"AIO Nexus Appliance"</strong> on your Desktop (or run <code>run-appliance.bat</code>).</li>
+            <li>The single-port server will launch at <code>http://localhost:8001</code> and automatically open your default browser.</li>
+            <li>To stop the appliance, close the terminal window or run <code>stop-appliance.bat</code>.</li>
+        </ol>
+    </div>
+</div>
+</body>
+</html>

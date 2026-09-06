@@ -469,6 +469,16 @@ async def submit_form(form_id: str, request: FormSubmissionRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@router.post("/api/forms/by-slug/{slug}/submit")
+async def submit_form_by_slug(slug: str, request: FormSubmissionRequest):
+    provider = get_provider()
+    form = provider.get_form_by_slug(slug)
+    if not form:
+        raise HTTPException(status_code=404, detail=f"Form with slug '{slug}' not found")
+    form_id = str(form.get("id"))
+    return await submit_form(form_id, request)
+
+
 # --- Email Verifier Routes ---
 
 @router.get("/api/email-verifier/config")
