@@ -1,0 +1,305 @@
+{
+  "blueprintId": "podcast_creator",
+  "name": "Podcast & Content Creator Studio",
+  "description": "Turnkey autonomous studio for solo podcasters and creators: guest intake, recording transcribing, show notes drafting, audiogram rendering, and social promotion.",
+  "version": "2.0.0",
+  "source": "filesystem",
+  "blueprintVersion": 2,
+  "tenant": {
+    "branding": {
+      "theme": "dark",
+      "layout": "sidebar-left",
+      "brandName": "Creator Studio",
+      "companyName": "Creator Studio Appliance",
+      "companyLogo": "",
+      "logoUrl": "/aio-button-192px.png",
+      "primaryColor": "#8b5cf6",
+      "secondaryColor": "#4c1d95",
+      "accentColor": "#f43f5e",
+      "menuBackgroundColor": "var(--color-bg-primary)",
+      "menuTextColor": "var(--color-text-primary)",
+      "footerText": "AIO Nexus Neural Appliance",
+      "disclaimer": "Local Studio Mode",
+      "contactInfo": "studio@local.appliance",
+      "reportHeaderLabel": "Podcast Production Log"
+    },
+    "navigation": {
+      "menuStructure": [
+        {
+          "label": "Studio Operations",
+          "items": [
+            { "id": "dashboard", "label": "Cockpit", "icon": "LayoutDashboard", "type": "internal", "visible": true },
+            { "id": "media", "label": "Media Studio", "icon": "Film", "type": "internal", "visible": true },
+            { "id": "aio-brain", "label": "Knowledge Vault", "icon": "Bot", "type": "internal", "visible": true },
+            { "id": "comms", "label": "Guest Comms", "icon": "MessageSquare", "type": "internal", "visible": true },
+            { "id": "calendar", "label": "Interview Calendar", "icon": "CalendarIcon", "type": "internal", "visible": true }
+          ]
+        },
+        {
+          "label": "Automation & Post",
+          "items": [
+            { "id": "flows", "label": "Production Flows", "icon": "Workflow", "type": "internal", "visible": true },
+            { "id": "signals", "label": "Action Signals", "icon": "Zap", "type": "internal", "visible": true },
+            { "id": "settings", "label": "Studio Settings", "icon": "Settings", "type": "internal", "visible": true }
+          ]
+        }
+      ],
+      "mobileItems": [
+        { "id": "pocket-approvals", "label": "Approvals", "icon": "CheckCircle" },
+        { "id": "pocket-cues", "label": "Cue Sheet", "icon": "List" },
+        { "id": "pocket-capture", "label": "Vault Ingest", "icon": "Camera" },
+        { "id": "pocket-voice", "label": "Voice Shell", "icon": "Mic" }
+      ]
+    },
+    "globalVariables": {
+      "podcastTitle": {
+        "value": "Solo Operator Podcast",
+        "label": "Podcast Title",
+        "category": "production",
+        "editableByClient": true,
+        "description": "Show title used in episode metadata and audiograms",
+        "isSystem": false,
+        "isSecret": false
+      },
+      "hostName": {
+        "value": "Solo Operator",
+        "label": "Host Name",
+        "category": "production",
+        "editableByClient": true,
+        "description": "Host credit used in show notes and email templates",
+        "isSystem": false,
+        "isSecret": false
+      },
+      "publishChannel": {
+        "value": "RSS / YouTube / Spotify",
+        "label": "Distribution Feeds",
+        "category": "distribution",
+        "editableByClient": true,
+        "description": "Target publishing channels for new episodes",
+        "isSystem": false,
+        "isSecret": false
+      }
+    },
+    "domains": {
+      "primaryDomain": "studio.local",
+      "allowedDomains": ["studio.local", "localhost"]
+    },
+    "comms": {
+      "defaults": {
+        "defaultMailboxId": "",
+        "defaultAssignee": "CHARLIE",
+        "defaultFromName": "Podcast Studio Host",
+        "defaultReplyTo": "host@studio.local",
+        "signature": "Produced with AIO Nexus Neural Appliance"
+      },
+      "systemEmailTemplates": {
+        "guest-invite": {
+          "templateKey": "guest-invite",
+          "emailType": "Guest Interview Invite",
+          "subject": "You are confirmed for our upcoming podcast recording",
+          "sendTo": "Guest Contact",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "Thanks for joining our show! Here are your recording prep details and Riverside/Zoom studio link.",
+          "config": {}
+        },
+        "episode-published": {
+          "templateKey": "episode-published",
+          "emailType": "Episode Live Notification",
+          "subject": "Your episode is live! Promotional assets inside",
+          "sendTo": "Guest Contact",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "Your interview has aired. Grab your audiograms, quote cards, and links to share.",
+          "config": {}
+        }
+      }
+    },
+    "calendar": {
+      "defaults": {
+        "defaultCalendarId": "",
+        "defaultBookingTypeId": "",
+        "defaultMeetingDuration": 45,
+        "defaultEventDurationMinutes": 45,
+        "defaultLocationType": "virtual",
+        "defaultLocationValue": "Studio Stream Link",
+        "bufferBeforeMinutes": 15,
+        "bufferAfterMinutes": 15
+      }
+    },
+    "automation": {
+      "defaults": {
+        "enabled": true,
+        "approvalMode": "pocket_guarded"
+      }
+    },
+    "visibility": {
+      "hiddenModules": [],
+      "clientEditableSections": ["branding", "navigation", "globalVariables", "comms", "calendar"]
+    },
+    "internal": {
+      "clientLabel": "Podcast Creator Studio",
+      "deploymentTag": "podcast-creator-appliance",
+      "handoffStatus": "ready",
+      "notes": "Turnkey production suite for audio/video podcasters",
+      "onboardingStage": "deployed",
+      "fulfillmentStatus": "ready",
+      "assignedOperator": "Operator",
+      "metadata": {
+        "archetype": "creator",
+        "hardwareProfile": "local_desktop"
+      }
+    }
+  },
+  "flows": [
+    {
+      "id": "podcast-guest-intake-flow",
+      "name": "Guest Booking & Prep Packet",
+      "status": "Active",
+      "nodes": [
+        {
+          "id": "trigger-guest-booking",
+          "type": "trigger",
+          "position": { "x": 100, "y": 120 },
+          "data": {
+            "templateId": "booking-created-trigger",
+            "label": "Guest Books Time",
+            "description": "Triggered when guest schedules recording slot",
+            "typeLabel": "Trigger",
+            "nodeColor": "trigger",
+            "iconName": "Calendar",
+            "config": { "event": "guest_booking" }
+          }
+        },
+        {
+          "id": "action-guest-brief",
+          "type": "action",
+          "position": { "x": 380, "y": 120 },
+          "data": {
+            "templateId": "ai-generate-brief",
+            "label": "Charlie: Generate Guest Brief",
+            "description": "Scrapes guest bio and creates interview questions",
+            "typeLabel": "Agent Action",
+            "nodeColor": "action",
+            "iconName": "Bot",
+            "config": { "assignedAgent": "CHARLIE" }
+          }
+        },
+        {
+          "id": "action-send-prep",
+          "type": "action",
+          "position": { "x": 660, "y": 120 },
+          "data": {
+            "templateId": "send-email-action",
+            "label": "Send Prep Email",
+            "description": "Delivers interview topics and studio link",
+            "typeLabel": "Action",
+            "nodeColor": "action",
+            "iconName": "Mail",
+            "config": { "templateKey": "guest-invite" }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-podcast-1",
+          "source": "trigger-guest-booking",
+          "target": "action-guest-brief"
+        },
+        {
+          "id": "edge-podcast-2",
+          "source": "action-guest-brief",
+          "target": "action-send-prep"
+        }
+      ],
+      "metadata": {
+        "nodeCount": 3,
+        "blueprintId": "podcast_creator"
+      }
+    },
+    {
+      "id": "podcast-post-production-flow",
+      "name": "Post-Production & Show Notes",
+      "status": "Active",
+      "nodes": [
+        {
+          "id": "trigger-recording-upload",
+          "type": "trigger",
+          "position": { "x": 100, "y": 120 },
+          "data": {
+            "templateId": "media-upload-trigger",
+            "label": "Raw Recording Ingested",
+            "description": "Triggered when episode audio or video is added to Vault",
+            "typeLabel": "Trigger",
+            "nodeColor": "trigger",
+            "iconName": "Upload",
+            "config": { "event": "media_uploaded" }
+          }
+        },
+        {
+          "id": "action-whisper-transcribe",
+          "type": "action",
+          "position": { "x": 380, "y": 120 },
+          "data": {
+            "templateId": "transcribe-audio",
+            "label": "Local Whisper Transcription",
+            "description": "Generates word-accurate transcript with timestamps",
+            "typeLabel": "Media Action",
+            "nodeColor": "action",
+            "iconName": "Headphones",
+            "config": { "provider": "whisper_local" }
+          }
+        },
+        {
+          "id": "action-generate-shownotes",
+          "type": "action",
+          "position": { "x": 660, "y": 120 },
+          "data": {
+            "templateId": "agent-shownotes",
+            "label": "Echo: Draft Show Notes & Timestamps",
+            "description": "Extracts highlights, links, and chapter markers",
+            "typeLabel": "Agent Action",
+            "nodeColor": "action",
+            "iconName": "FileText",
+            "config": { "assignedAgent": "ECHO" }
+          }
+        },
+        {
+          "id": "action-render-audiogram",
+          "type": "action",
+          "position": { "x": 940, "y": 120 },
+          "data": {
+            "templateId": "render-audiogram",
+            "label": "Remotion: 9:16 Audiogram Clip",
+            "description": "Generates vertical social clip with waveforms and captions",
+            "typeLabel": "Render Action",
+            "nodeColor": "action",
+            "iconName": "Film",
+            "config": { "templateId": "aio_916" }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-post-1",
+          "source": "trigger-recording-upload",
+          "target": "action-whisper-transcribe"
+        },
+        {
+          "id": "edge-post-2",
+          "source": "action-whisper-transcribe",
+          "target": "action-generate-shownotes"
+        },
+        {
+          "id": "edge-post-3",
+          "source": "action-generate-shownotes",
+          "target": "action-render-audiogram"
+        }
+      ],
+      "metadata": {
+        "nodeCount": 4,
+        "blueprintId": "podcast_creator"
+      }
+    }
+  ]
+}

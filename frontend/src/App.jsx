@@ -58,6 +58,7 @@ const DialerPage = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const ForgeModule = lazy(() => import('./modules/Forge'));
+const PocketModule = lazy(() => import('./modules/Pocket'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -328,6 +329,7 @@ const App = () => {
     'settings': 'Settings',
     'agents': 'Agents',
     'forge': 'Forge',
+    'pocket': 'Pocket',
   };
   const activeModuleLabel = moduleLabels[activeModule] || activeModule;
 
@@ -840,6 +842,8 @@ const App = () => {
         return <HelpModule activeModule={activeModule} />;
       case 'forge':
         return <ForgeModule />;
+      case 'pocket':
+        return <PocketModule onNavigate={setActiveModule} />;
       default:
         return <UnknownModule moduleId={effectiveActiveModule} />;
     }

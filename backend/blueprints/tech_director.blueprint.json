@@ -1,0 +1,286 @@
+{
+  "blueprintId": "tech_director",
+  "name": "Live Event & Production Technical Director",
+  "description": "Turnkey operations appliance for event technical directors, AV engineers, and presentation producers: run-of-show schedules, cue sheets, presenter slide notes, and live stage alerts.",
+  "version": "2.0.0",
+  "source": "filesystem",
+  "blueprintVersion": 2,
+  "tenant": {
+    "branding": {
+      "theme": "dark",
+      "layout": "sidebar-left",
+      "brandName": "Production Command",
+      "companyName": "Show Director Console",
+      "companyLogo": "",
+      "logoUrl": "/aio-button-192px.png",
+      "primaryColor": "#0284c7",
+      "secondaryColor": "#0369a1",
+      "accentColor": "#eab308",
+      "menuBackgroundColor": "var(--color-bg-primary)",
+      "menuTextColor": "var(--color-text-primary)",
+      "footerText": "AIO Nexus Neural Appliance",
+      "disclaimer": "Live Production Environment",
+      "contactInfo": "tech@event.appliance",
+      "reportHeaderLabel": "Production Run-of-Show Log"
+    },
+    "navigation": {
+      "menuStructure": [
+        {
+          "label": "Live Production",
+          "items": [
+            { "id": "dashboard", "label": "Command Deck", "icon": "LayoutDashboard", "type": "internal", "visible": true },
+            { "id": "media", "label": "Run-of-Show", "icon": "ListOrdered", "type": "internal", "visible": true },
+            { "id": "signals", "label": "Live Cues & Signals", "icon": "Radio", "type": "internal", "visible": true },
+            { "id": "aio-brain", "label": "Show Runbooks & Vault", "icon": "FolderGit2", "type": "internal", "visible": true }
+          ]
+        },
+        {
+          "label": "Coordination & Crew",
+          "items": [
+            { "id": "comms", "label": "Crew Intercom & SMS", "icon": "MessageSquare", "type": "internal", "visible": true },
+            { "id": "calendar", "label": "Event Milestones", "icon": "CalendarIcon", "type": "internal", "visible": true },
+            { "id": "flows", "label": "Production Automations", "icon": "Workflow", "type": "internal", "visible": true },
+            { "id": "settings", "label": "Console Config", "icon": "Settings", "type": "internal", "visible": true }
+          ]
+        }
+      ],
+      "mobileItems": [
+        { "id": "pocket-cues", "label": "Live Cue Sheet", "icon": "List" },
+        { "id": "pocket-approvals", "label": "Go/No-Go Approvals", "icon": "CheckCircle" },
+        { "id": "pocket-voice", "label": "Voice Intercom", "icon": "Mic" },
+        { "id": "pocket-capture", "label": "Stage Photo/Video Ingest", "icon": "Camera" }
+      ]
+    },
+    "globalVariables": {
+      "productionName": {
+        "value": "Keynote Production & Live Stream",
+        "label": "Production Title",
+        "category": "live_ops",
+        "editableByClient": true,
+        "description": "Show title for cue sheets, lower thirds, and crew communications",
+        "isSystem": false,
+        "isSecret": false
+      },
+      "venueLocation": {
+        "value": "Main Stage & Stream Encoders",
+        "label": "Venue / Room",
+        "category": "live_ops",
+        "editableByClient": true,
+        "description": "Physical stage or stream destination",
+        "isSystem": false,
+        "isSecret": false
+      },
+      "leadDirector": {
+        "value": "Technical Director",
+        "label": "Lead TD",
+        "category": "crew",
+        "editableByClient": true,
+        "description": "Call authority for live cue calls and stage changes",
+        "isSystem": false,
+        "isSecret": false
+      }
+    },
+    "domains": {
+      "primaryDomain": "show.local",
+      "allowedDomains": ["show.local", "localhost"]
+    },
+    "comms": {
+      "defaults": {
+        "defaultMailboxId": "",
+        "defaultAssignee": "ATLAS",
+        "defaultFromName": "Production Technical Director",
+        "defaultReplyTo": "td@show.local",
+        "signature": "Show Control System"
+      },
+      "systemEmailTemplates": {
+        "tech-packet": {
+          "templateKey": "tech-packet",
+          "emailType": "Speaker Technical Packet",
+          "subject": "Tech Check & Presentation Slide Deadlines",
+          "sendTo": "Presenter Contact",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "Please review your stage time, slide aspect ratio requirements (16:9), and mic check window.",
+          "config": {}
+        },
+        "cue-alert": {
+          "templateKey": "cue-alert",
+          "emailType": "Live Cue Dispatch",
+          "subject": "15-Minute Standby Call",
+          "sendTo": "Stage Crew",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "Standby for show start. All camera operators, audio leads, and switchers report to positions.",
+          "config": {}
+        }
+      }
+    },
+    "calendar": {
+      "defaults": {
+        "defaultCalendarId": "",
+        "defaultBookingTypeId": "",
+        "defaultMeetingDuration": 60,
+        "defaultEventDurationMinutes": 60,
+        "defaultLocationType": "physical",
+        "defaultLocationValue": "Master Control Room",
+        "bufferBeforeMinutes": 30,
+        "bufferAfterMinutes": 30
+      }
+    },
+    "automation": {
+      "defaults": {
+        "enabled": true,
+        "approvalMode": "pocket_guarded"
+      }
+    },
+    "visibility": {
+      "hiddenModules": [],
+      "clientEditableSections": ["branding", "navigation", "globalVariables", "comms", "calendar"]
+    },
+    "internal": {
+      "clientLabel": "Technical Director Console",
+      "deploymentTag": "tech-director-appliance",
+      "handoffStatus": "ready",
+      "notes": "Live event cueing, run-of-show orchestration, and presenter synchronization suite",
+      "onboardingStage": "deployed",
+      "fulfillmentStatus": "ready",
+      "assignedOperator": "Operator",
+      "metadata": {
+        "archetype": "tech_director",
+        "hardwareProfile": "field_appliance"
+      }
+    }
+  },
+  "flows": [
+    {
+      "id": "run-of-show-sync-flow",
+      "name": "Presenter Slide & Cue Synchronization",
+      "status": "Active",
+      "nodes": [
+        {
+          "id": "trigger-deck-upload",
+          "type": "trigger",
+          "position": { "x": 100, "y": 120 },
+          "data": {
+            "templateId": "deck-upload-trigger",
+            "label": "Presenter Deck Uploaded",
+            "description": "Triggered when PowerPoint or Keynote slides are uploaded to Vault",
+            "typeLabel": "Trigger",
+            "nodeColor": "trigger",
+            "iconName": "Sliders",
+            "config": { "event": "deck_uploaded" }
+          }
+        },
+        {
+          "id": "action-extract-notes",
+          "type": "action",
+          "position": { "x": 380, "y": 120 },
+          "data": {
+            "templateId": "extract-slide-notes",
+            "label": "Delta: Extract Slide Cues & Timing",
+            "description": "Parses speaker notes, transition cues, and estimated time per slide",
+            "typeLabel": "Agent Action",
+            "nodeColor": "action",
+            "iconName": "Clock",
+            "config": { "assignedAgent": "DELTA" }
+          }
+        },
+        {
+          "id": "action-generate-cuesheet",
+          "type": "action",
+          "position": { "x": 660, "y": 120 },
+          "data": {
+            "templateId": "compile-cue-sheet",
+            "label": "Atlas: Compile High-Contrast Cue Sheet",
+            "description": "Formats timeline and lower thirds for mobile Pocket Cue Sheet view",
+            "typeLabel": "Agent Action",
+            "nodeColor": "action",
+            "iconName": "List",
+            "config": { "assignedAgent": "ATLAS" }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-td-1",
+          "source": "trigger-deck-upload",
+          "target": "action-extract-notes"
+        },
+        {
+          "id": "edge-td-2",
+          "source": "action-extract-notes",
+          "target": "action-generate-cuesheet"
+        }
+      ],
+      "metadata": {
+        "nodeCount": 3,
+        "blueprintId": "tech_director"
+      }
+    },
+    {
+      "id": "live-stage-call-flow",
+      "name": "Crew Standby & 15-Min Call Dispatch",
+      "status": "Active",
+      "nodes": [
+        {
+          "id": "trigger-standby-call",
+          "type": "trigger",
+          "position": { "x": 100, "y": 120 },
+          "data": {
+            "templateId": "manual-call-trigger",
+            "label": "TD Standby Button Pressed",
+            "description": "One-touch button on Pocket or Cockpit to issue crew countdown",
+            "typeLabel": "Trigger",
+            "nodeColor": "trigger",
+            "iconName": "PlayCircle",
+            "config": { "event": "manual_call" }
+          }
+        },
+        {
+          "id": "action-sms-dispatch",
+          "type": "action",
+          "position": { "x": 380, "y": 120 },
+          "data": {
+            "templateId": "crew-sms-broadcast",
+            "label": "Broadcast SMS to Stage Crew",
+            "description": "Sends instant text alert via local Telnyx/Twilio connection",
+            "typeLabel": "Comms Action",
+            "nodeColor": "action",
+            "iconName": "PhoneCall",
+            "config": { "broadcastType": "crew_standby" }
+          }
+        },
+        {
+          "id": "action-publish-signal",
+          "type": "action",
+          "position": { "x": 660, "y": 120 },
+          "data": {
+            "templateId": "post-actionable-signal",
+            "label": "Raise Critical Signal in Cockpit",
+            "description": "Pin timer alert to operator cockpit and mobile devices",
+            "typeLabel": "Signal Action",
+            "nodeColor": "action",
+            "iconName": "AlertCircle",
+            "config": { "severity": "critical" }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-call-1",
+          "source": "trigger-standby-call",
+          "target": "action-sms-dispatch"
+        },
+        {
+          "id": "edge-call-2",
+          "source": "action-sms-dispatch",
+          "target": "action-publish-signal"
+        }
+      ],
+      "metadata": {
+        "nodeCount": 3,
+        "blueprintId": "tech_director"
+      }
+    }
+  ]
+}
