@@ -24,7 +24,18 @@ import {
 } from './backendApi';
 
 export const AuthService = {
-  getAuthStatus: () => getAuthStatusApi(),
+  getAuthStatus: async () => {
+    const res = await getAuthStatusApi();
+    const hasUsers = Boolean(res?.hasUsers ?? res?.has_users);
+    const canBootstrapOwner = Boolean(res?.canBootstrapOwner ?? res?.can_bootstrap_owner ?? !hasUsers);
+    const googleOauthAvailable = Boolean(res?.googleOauthAvailable ?? res?.google_oauth_available);
+    return {
+      hasUsers,
+      canBootstrapOwner,
+      googleOauthAvailable,
+      providers: res?.providers || [],
+    };
+  },
   bootstrapOwner: (payload) => bootstrapOwnerApi(payload),
   login: (payload) => loginApi(payload),
   forgotPassword: (email) => forgotPasswordApi(email),

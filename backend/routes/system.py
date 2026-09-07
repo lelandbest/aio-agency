@@ -155,10 +155,10 @@ def purge_local_app_data() -> list[str]:
 async def health_check():
     return {
         "status": "healthy",
-        "message": "AIO Nexus Appliance Backend is running",
+        "message": "AIO Nexus Backend is running",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "2.0.0",
-        "environment": os.getenv("APP_ENV", "appliance"),
+        "environment": os.getenv("APP_ENV", "production"),
         "data_provider": asdict(provider.get_status()) if hasattr(provider, "get_status") else None,
         "tenant_id": "tenant-primary",
         "debug_agent_count": len(AGENT_DEFINITIONS),
@@ -173,7 +173,7 @@ async def health_check():
 @router.get("/api/")
 async def root():
     return {
-        "message": "AIO Nexus Neural Appliance",
+        "message": "AIO Nexus",
         "version": "2.0.0",
         "status": "online",
     }
@@ -509,3 +509,33 @@ async def omega_execute(request: Request, payload: OmegaExecuteRequest):
             "removed_paths": removed_paths,
         }
     }
+
+
+# ── Storage Location & Data Relocation Endpoints ───────────────────────────
+
+class StorageRelocateRequest(BaseModel):
+    newPath: str
+    moveExisting: bool = True
+
+
+@router.get("/api/system/storage-config")
+async def get_storage_configuration(request: Request):
+    require_session(request)
+    try:
+        from backend.storage_config import get_storage_info
+        return {"data": get_storage_info()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to inspect storage: {e}")
+
+
+@router.post("/api/system/storage-relocate")
+async def relocate_storage_configuration(request: Request, payload: StorageRelocateRequest):
+    require_operator(request)
+    if not payload.newPath or not payload.newPath.strip():
+        raise HTTPException(status_code=400, detail="Target storage path is required.")
+    try:
+        from backend.storage_config import relocate_storage
+        result = relocate_storage(payload.newPath, move_existing=payload.moveExisting)
+        return {"data": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

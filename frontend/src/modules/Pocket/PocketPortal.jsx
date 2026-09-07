@@ -57,7 +57,7 @@ export default function PocketPortal({ initialTab = 'brief' }) {
             </h1>
             <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Appliance Online (Local)
+              System Online (Local)
             </span>
           </div>
         </div>
@@ -172,11 +172,11 @@ export default function PocketPortal({ initialTab = 'brief' }) {
               </div>
             </div>
 
-            {/* Appliance Telemetry Badge */}
+            {/* System Telemetry Badge */}
             <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-3 flex items-center justify-between text-[11px] text-zinc-400">
               <span className="flex items-center gap-1.5">
                 <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
-                Local SQLite Appliance
+                Local SQLite Storage
               </span>
               <span className="font-mono text-emerald-400 font-semibold">$0.00 Cloud Rent</span>
             </div>

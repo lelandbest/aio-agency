@@ -70,7 +70,7 @@ export default function PocketCapture() {
           Vault Quick Ingest
         </h2>
         <p className="text-xs text-zinc-400 mt-0.5">
-          Capture notes, photos, and voice directly into local appliance memory
+          Capture notes, photos, and voice directly into local memory
         </p>
       </div>
 

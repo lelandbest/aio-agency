@@ -170,10 +170,18 @@ def session_tenant_settings(tenant: dict[str, Any] | None) -> dict[str, Any]:
 def _resolve_media_file_path(kind: str, filename: str) -> Path:
     if not re.match(r"^[A-Za-z0-9._-]+$", filename):
         raise HTTPException(status_code=400, detail="Invalid media filename.")
-    media_path = CURRENT_DIR / "data" / kind / filename
-    if not media_path.exists() or not media_path.is_file():
-        raise HTTPException(status_code=404, detail="Media file not found.")
-    return media_path
+    search_dirs: list[Path] = []
+    if os.getenv("MEDIA_DATA_DIR"):
+        search_dirs.append(Path(os.getenv("MEDIA_DATA_DIR")).resolve() / kind)
+    if os.getenv("SQLITE_DB_PATH"):
+        search_dirs.append(Path(os.getenv("SQLITE_DB_PATH")).resolve().parent / kind)
+    search_dirs.append(CURRENT_DIR.parent / "data" / kind)
+    search_dirs.append(CURRENT_DIR / "data" / kind)
+    for sdir in search_dirs:
+        candidate = sdir / filename
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    raise HTTPException(status_code=404, detail="Media file not found.")
 
 
 # --- Media Asset & File Serving Endpoints ---

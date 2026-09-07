@@ -67,8 +67,8 @@ logger = logging.getLogger("aio-nexus")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("AIO Nexus Neural Appliance starting up")
-    logger.info("Environment: %s", os.getenv("APP_ENV", "appliance"))
+    logger.info("AIO Nexus starting up")
+    logger.info("Environment: %s", os.getenv("APP_ENV", "production"))
     logger.info("Data Provider Health: %s", provider.health())
     resume_worker = asyncio.create_task(run_resume_worker(provider))
     try:
@@ -79,14 +79,14 @@ async def lifespan(app: FastAPI):
             await resume_worker
         except asyncio.CancelledError:
             pass
-        logger.info("AIO Nexus Neural Appliance shut down cleanly")
+        logger.info("AIO Nexus shut down cleanly")
 
 
 # ── FastAPI App Factory ──────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="AIO Nexus Neural Appliance",
-    description="Local-first, cloud-agnostic autonomous business operations appliance for Single Operator Businesses.",
+    title="AIO Nexus",
+    description="Local-first, cloud-agnostic autonomous business operations system for Single Operator Businesses.",
     version="2.0.0",
     lifespan=lifespan,
 )

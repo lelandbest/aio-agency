@@ -4841,6 +4841,22 @@ class SQLiteProvider(BaseProvider):
             self._migrate_ai_audit_logs_schema(conn)
 
             self._ensure_column(conn, "mailboxes", "status", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "command", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "mode", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "pauseReason", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "resumeAt", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "nextNodeId", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "currentNodeId", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "lockedUntil", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "lastError", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "stepsJson", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "aiEngineRuns", "artifactsJson", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "aiEngineRuns", "pendingApprovalsJson", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "aiEngineRuns", "routingJson", "TEXT DEFAULT '{}'")
+            self._ensure_column(conn, "aiEngineRuns", "traceJson", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "aiEngineRuns", "actorJson", "TEXT DEFAULT '{}'")
+            self._ensure_column(conn, "aiEngineRuns", "contextJson", "TEXT DEFAULT '{}'")
+            self._ensure_column(conn, "aiEngineRuns", "commandText", "TEXT")
             self._ensure_column(conn, "mailboxes", "inboundEnabled", "INTEGER")
             self._ensure_column(conn, "mailboxes", "outboundEnabled", "INTEGER")
             self._ensure_column(conn, "mailboxes", "lastSyncedAt", "TEXT")
@@ -10134,5 +10150,9 @@ def create_provider() -> BaseProvider:
     provider_name = os.getenv("DATA_PROVIDER", "sqlite").lower()
     if provider_name == "mock":
         return MockProvider()
-    db_path = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "data" / "aio_crm.db"))
+    try:
+        from backend.storage_config import resolve_data_directory
+        db_path = str(resolve_data_directory() / "aio_crm.db")
+    except Exception:
+        db_path = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "data" / "aio_crm.db"))
     return SQLiteProvider(db_path)

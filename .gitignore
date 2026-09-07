@@ -143,3 +143,8 @@ backend/data/voice/
 # Audit reports
 *_AUDIT_REPORT.md
 crm_feature_audit.md
+
+# Isolated user data & storage configs
+data/
+*.db
+storage.json

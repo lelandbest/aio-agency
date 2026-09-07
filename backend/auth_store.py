@@ -5201,4 +5201,9 @@ def get_auth_store():
 
 
 def default_auth_db_path() -> str:
+    try:
+        from backend.storage_config import resolve_data_directory
+        return str(resolve_data_directory() / "aio_crm.db")
+    except Exception:
+        pass
     return os.getenv("AUTH_DB_PATH") or os.getenv("SQLITE_DB_PATH") or str(Path(__file__).resolve().parent / "data" / "aio_crm.db")

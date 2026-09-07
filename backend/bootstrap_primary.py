@@ -10,12 +10,30 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from auth_store import AuthStore, hash_password, utcnow_iso, slugify, default_auth_db_path
+    try:
+        from data_provider import SQLiteProvider
+    except ImportError:
+        SQLiteProvider = None
 except ImportError:
     # Fallback for direct execution
     from backend.auth_store import AuthStore, hash_password, utcnow_iso, slugify, default_auth_db_path
+    try:
+        from backend.data_provider import SQLiteProvider
+    except ImportError:
+        SQLiteProvider = None
 
-def bootstrap(email, password, tenant_name="Primary Workspace"):
+def bootstrap(email: str | None = None, password: str | None = None, tenant_name: str = "Primary Workspace"):
     db_path = default_auth_db_path()
+    if SQLiteProvider:
+        try:
+            SQLiteProvider(db_path)
+            print(f"INITIALIZED CRM SCHEMA IN: {db_path}")
+        except Exception as e:
+            print(f"CRM SCHEMA INIT NOTE: {e}")
+
+    if not email or not password:
+        return
+
     auth = AuthStore(db_path)
     
     with auth._connect() as conn:
@@ -92,9 +110,7 @@ def bootstrap(email, password, tenant_name="Primary Workspace"):
     print("\nSUCCESS: Manual bootstrap complete. You can now login with these credentials.")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python bootstrap_primary.py <email> <password> [tenant_name]")
-        print("Example: python backend/bootstrap_primary.py admin@example.com mypassword123")
-        sys.exit(1)
-    
-    bootstrap(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "Primary Workspace")
+    email = sys.argv[1] if len(sys.argv) > 1 else "support@aiocrm.org"
+    password = sys.argv[2] if len(sys.argv) > 2 else "aioadmin123"
+    tenant_name = sys.argv[3] if len(sys.argv) > 3 else "Primary Workspace"
+    bootstrap(email, password, tenant_name)

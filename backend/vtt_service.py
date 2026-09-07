@@ -559,10 +559,12 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 audio_bytes = resp.read()
 
-        if not audio_bytes:
-            return None
-
-        audio_dir = Path(__file__).resolve().parent / "data" / "voice"
+        if os.getenv("MEDIA_DATA_DIR"):
+            audio_dir = Path(os.getenv("MEDIA_DATA_DIR")).resolve() / "voice"
+        elif os.getenv("SQLITE_DB_PATH"):
+            audio_dir = Path(os.getenv("SQLITE_DB_PATH")).resolve().parent / "voice"
+        else:
+            audio_dir = Path(__file__).resolve().parent / "data" / "voice"
         audio_dir.mkdir(parents=True, exist_ok=True)
         import hashlib
         token = hashlib.sha256(text.encode()).hexdigest()[:16]

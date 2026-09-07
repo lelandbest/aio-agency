@@ -228,25 +228,47 @@ def _backend_root() -> Path:
     return Path(__file__).resolve().parent
 
 
+def _media_data_root() -> Path:
+    try:
+        from backend.storage_config import resolve_data_directory
+        return resolve_data_directory()
+    except Exception:
+        pass
+    if os.getenv("MEDIA_DATA_DIR"):
+        return Path(os.getenv("MEDIA_DATA_DIR")).resolve()
+    if os.getenv("SQLITE_DB_PATH"):
+        return Path(os.getenv("SQLITE_DB_PATH")).resolve().parent
+    return Path(__file__).resolve().parent / "data"
+
+
 def _resolve_local_media_path(source_url: str) -> Path | None:
     if not clean_text(source_url):
         return None
     candidate = Path(source_url)
     if candidate.exists():
         return candidate
-    backend_root = _backend_root()
-    if source_url.startswith("/api/media/video/"):
-        filename = source_url.split("/api/media/video/")[-1]
-        resolved = backend_root / "data" / "video" / filename
-        return resolved if resolved.exists() else None
-    if source_url.startswith("/api/media/audio/"):
-        filename = source_url.split("/api/media/audio/")[-1]
-        resolved = backend_root / "data" / "audio" / filename
-        return resolved if resolved.exists() else None
-    if source_url.startswith("/api/media/image/"):
-        filename = source_url.split("/api/media/image/")[-1]
-        resolved = backend_root / "data" / "image" / filename
-        return resolved if resolved.exists() else None
+    search_roots = [_media_data_root(), Path(__file__).resolve().parent.parent / "data", _backend_root() / "data"]
+    for root in search_roots:
+        if source_url.startswith("/api/media/video/"):
+            filename = source_url.split("/api/media/video/")[-1]
+            resolved = root / "video" / filename
+            if resolved.exists():
+                return resolved
+        if source_url.startswith("/api/media/audio/"):
+            filename = source_url.split("/api/media/audio/")[-1]
+            resolved = root / "audio" / filename
+            if resolved.exists():
+                return resolved
+        if source_url.startswith("/api/media/image/"):
+            filename = source_url.split("/api/media/image/")[-1]
+            resolved = root / "image" / filename
+            if resolved.exists():
+                return resolved
+        if source_url.startswith("/api/media/voice/"):
+            filename = source_url.split("/api/media/voice/")[-1]
+            resolved = root / "voice" / filename
+            if resolved.exists():
+                return resolved
     return None
 
 
@@ -2028,7 +2050,7 @@ class ElevenLabsTTSProvider(BaseAudioRenderProvider):
         if not audio_bytes:
             raise ValueError("ElevenLabs returned an empty audio response.")
 
-        audio_dir = Path(__file__).resolve().parent / "data" / "audio"
+        audio_dir = _media_data_root() / "audio"
         audio_dir.mkdir(parents=True, exist_ok=True)
         job_id = clean_text(job.get("id")) or unique_id("audio")
         filename = f"{job_id}.mp3"
@@ -2106,7 +2128,7 @@ class VoiceboxTTSProvider(BaseAudioRenderProvider):
         except Exception as e:
             raise ValueError(f"Voicebox TTS connection error: {str(e)}")
 
-        audio_dir = Path(__file__).resolve().parent / "data" / "audio"
+        audio_dir = _media_data_root() / "audio"
         audio_dir.mkdir(parents=True, exist_ok=True)
         job_id = clean_text(job.get("id")) or unique_id("audio")
         filename = f"{job_id}.mp3"
@@ -2202,7 +2224,7 @@ class ElevenLabsSoundGenProvider(BaseAudioRenderProvider):
         if not audio_bytes:
             raise ValueError("ElevenLabs sound generation returned empty audio.")
 
-        audio_dir = Path(__file__).resolve().parent / "data" / "audio"
+        audio_dir = _media_data_root() / "audio"
         audio_dir.mkdir(parents=True, exist_ok=True)
         job_id = clean_text(job.get("id")) or unique_id("snd")
         filename = f"{audio_subtype}_{job_id}.mp3"
@@ -2378,14 +2400,15 @@ class MediaEngine:
 
         guessed_content_type, _ = mimetypes.guess_type(safe_name)
         media_type = classify_uploaded_media(content_type, guessed_content_type, Path(safe_name).suffix)
+        media_root = _media_data_root()
         if media_type == "audio":
-            storage_dir = _backend_root() / "data" / "audio"
+            storage_dir = media_root / "audio"
             source_prefix = "/api/media/audio"
         elif media_type == "image":
-            storage_dir = _backend_root() / "data" / "image"
+            storage_dir = media_root / "image"
             source_prefix = "/api/media/image"
         else:
-            storage_dir = _backend_root() / "data" / "video"
+            storage_dir = media_root / "video"
             source_prefix = "/api/media/video"
 
         storage_dir.mkdir(parents=True, exist_ok=True)

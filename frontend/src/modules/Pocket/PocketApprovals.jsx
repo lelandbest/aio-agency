@@ -20,7 +20,7 @@ export default function PocketApprovals({ onCountChange }) {
       setApprovals(list);
       if (onCountChange) onCountChange(list.length);
     } catch (err) {
-      setError(err.message || 'Unable to connect to appliance.');
+      setError(err.message || 'Unable to connect to server.');
     } finally {
       setLoading(false);
     }

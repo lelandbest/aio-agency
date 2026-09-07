@@ -14,7 +14,18 @@ function resolveDefaultApiBaseUrl() {
     return `${protocol}//${normalizedHost}:8001`;
   }
 
-  // In production appliance mode or reverse proxy / tunnel (Tailscale Funnel, ngrok), use current origin
+  // If running in Tauri desktop webview, route directly to local backend
+  if (
+    window.location.protocol === 'tauri:' ||
+    window.location.hostname === 'tauri.localhost' ||
+    window.location.origin.includes('tauri') ||
+    typeof window.__TAURI_INTERNALS__ !== 'undefined' ||
+    typeof window.__TAURI__ !== 'undefined'
+  ) {
+    return 'http://127.0.0.1:8001';
+  }
+
+  // In production mode or reverse proxy / tunnel, use current origin
   return window.location.origin;
 }
 
