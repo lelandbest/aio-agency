@@ -827,11 +827,18 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       };
 
       if (composerChannel === 'email') {
+        const recipient = selectedThread.contact?.email 
+          || (selectedThread.messages || []).slice().reverse().find((m) => m.senderEmail && !m.senderEmail.endsWith('.local'))?.senderEmail
+          || null;
+        if (!recipient) {
+          showNotice({ tone: 'error', message: 'Recipient email required: This contact has no email address on file.' });
+          return;
+        }
         await CommsService.sendThreadEmail(selectedThread.id, {
           ...payload,
           mailboxId: selectedThread.mailboxId,
           senderEmail: 'mission@aiocrm.local',
-          recipients: [selectedThread.contact?.email].filter(Boolean)
+          recipients: [recipient]
         });
       } else {
         await CommsService.sendThreadMessage(selectedThread.id, { 

@@ -167,6 +167,10 @@ def is_client_allowed_api_request(method: str, path: str) -> bool:
         return True
     if path == "/api/booking-types" and method == "GET":
         return True
+    if re.fullmatch(r"/api/mailboxes/[^/]+/events", path or "") and method == "GET":
+        return True
+    if path in {"/api/mailboxes", "/api/mailboxes/providers"} and method == "GET":
+        return True
     if path == "/api/ai/assist" and method == "POST":
         return True
     return False

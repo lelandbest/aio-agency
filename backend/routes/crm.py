@@ -642,3 +642,49 @@ async def get_email_verifier_bulk_task(task_id: str, request: Request):
         task = provider.update_email_verification_task(task_id, {"status": "failed", "completed_at": utcnow_iso(), "last_error": str(error)})
         provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso())
         return {"data": task}
+
+
+# --- Orders Endpoints ---
+
+@router.get("/api/orders")
+async def list_orders():
+    provider = get_provider()
+    return {"data": provider.list_orders()}
+
+
+@router.post("/api/orders")
+async def create_order(request: Request, payload: dict[str, Any] = Body(...)):
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage orders.")
+    provider = get_provider()
+    try:
+        return {"data": provider.create_order(payload)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/api/orders/{order_id}")
+async def get_order(order_id: str):
+    provider = get_provider()
+    order = provider.get_order_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"data": order}
+
+
+@router.put("/api/orders/{order_id}")
+@router.patch("/api/orders/{order_id}")
+async def update_order(order_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage orders.")
+    provider = get_provider()
+    try:
+        return {"data": provider.update_order(order_id, payload)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/api/orders/{order_id}")
+async def delete_order(order_id: str, request: Request):
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage orders.")
+    provider = get_provider()
+    provider.delete_order(order_id)
+    return {"success": True}

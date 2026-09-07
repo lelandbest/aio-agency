@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -285,9 +285,32 @@ async def send_thread_email(thread_id: str, request: Request, payload: MailSendR
     except ImportError:
         from comms_service import send_email_message
 
+    provider = get_provider()
+    recipients = [r.strip() for r in (payload.recipients or []) if r and r.strip()]
+    if not recipients:
+        # Resolve recipient from thread contact or previous thread messages
+        threads = provider._get_thread_context() if hasattr(provider, "_get_thread_context") else []
+        thread = next((t for t in threads if t.get("id") == thread_id), None)
+        if thread:
+            contact = thread.get("contact") or {}
+            if contact.get("email"):
+                recipients = [contact["email"].strip()]
+            elif thread.get("messages"):
+                for msg in reversed(thread["messages"]):
+                    sender = (msg.get("senderEmail") or "").strip()
+                    if sender and "@" in sender and not sender.endswith(".local"):
+                        recipients = [sender]
+                        break
+
+    if not recipients:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot send email: No recipient email address specified or found for this contact/thread."
+        )
+
     result = send_email_message(
         thread_id=thread_id,
-        recipients=payload.recipients,
+        recipients=recipients,
         subject="Email from Comms",
         body=payload.body,
         mailbox_id=payload.mailbox_id,
@@ -833,6 +856,32 @@ async def disconnect_mailbox(mailbox_id: str, request: Request):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@router.get("/api/mailboxes/{mailbox_id}/events")
+async def get_mailbox_events(mailbox_id: str):
+    provider = get_provider()
+    return {"data": provider.list_mail_events(mailbox_id=mailbox_id)}
+
+
+@router.post("/api/mailboxes/{mailbox_id}/sync")
+async def sync_mailbox(mailbox_id: str, request: Request):
+    require_capability(request, "system.admin", "Only workspace admins can sync mailboxes.")
+    provider = get_provider()
+    try:
+        return provider.sync_mailbox(mailbox_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/api/mailboxes/{mailbox_id}/test-connection")
+async def test_mailbox_connection(mailbox_id: str, request: Request):
+    require_capability(request, "system.admin", "Only workspace admins can test mailbox connections.")
+    provider = get_provider()
+    try:
+        return provider.test_mailbox_connection(mailbox_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 # --- Calendar Endpoints ---
 
 @router.get("/api/calendars")
@@ -945,6 +994,39 @@ async def list_calendar_sources():
 async def list_calendar_providers():
     provider = get_provider()
     return {"data": provider.get_calendar_provider_catalog()}
+
+
+# --- Booking Types Endpoints ---
+
+@router.get("/api/booking-types")
+async def list_booking_types():
+    provider = get_provider()
+    return {"data": provider.list_booking_types()}
+
+
+@router.post("/api/booking-types")
+async def create_booking_type(request: Request, payload: dict[str, Any] = Body(...)):
+    require_capability(request, "system.manage", "Only workspace staff or higher can create booking types.")
+    provider = get_provider()
+    return {"data": provider.create_booking_type(payload)}
+
+
+@router.patch("/api/booking-types/{booking_type_id}")
+async def update_booking_type(booking_type_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+    require_capability(request, "system.manage", "Only workspace staff or higher can update booking types.")
+    provider = get_provider()
+    try:
+        return {"data": provider.update_booking_type(booking_type_id, payload)}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.delete("/api/booking-types/{booking_type_id}")
+async def delete_booking_type(booking_type_id: str, request: Request):
+    require_capability(request, "system.manage", "Only workspace staff or higher can delete booking types.")
+    provider = get_provider()
+    provider.delete_booking_type(booking_type_id)
+    return {"success": True}
 
 
 @router.get("/api/calendar/sources/{source_id}/authorize")

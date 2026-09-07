@@ -8274,9 +8274,9 @@ class SQLiteProvider(BaseProvider):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    record["id"], record["tenantId"], record["userId"], record["name"], record["slug"], record["durationMinutes"],
-                    record["location"], record["locationType"], record["description"], record["color"],
-                    record["bufferBeforeMinutes"], record["bufferAfterMinutes"], record["isActive"],
+                    record["id"], record["tenantId"], record["userId"], record["name"], record["slug"], record["duration_minutes"],
+                    record["location"], record["location_type"], record["description"], record["color"],
+                    record["buffer_before_minutes"], record["buffer_after_minutes"], record["is_active"],
                 ),
             )
             conn.commit()
@@ -9025,9 +9025,10 @@ class SQLiteProvider(BaseProvider):
         if not row:
             return None
         payload = dict(row)
-        payload["config"] = json_loads(payload.pop("config_json"), {})
-        payload["inbound_enabled"] = bool(payload.get("inbound_enabled", 1))
-        payload["outbound_enabled"] = bool(payload.get("outbound_enabled", 1))
+        config_raw = payload.pop("configJson", None) or payload.pop("config_json", None)
+        payload["config"] = json_loads(config_raw, {}) if isinstance(config_raw, str) else (config_raw or {})
+        payload["inbound_enabled"] = bool(payload.get("inboundEnabled", payload.get("inbound_enabled", 1)))
+        payload["outbound_enabled"] = bool(payload.get("outboundEnabled", payload.get("outbound_enabled", 1)))
         return payload
 
     def sync_mailbox(self, mailbox_id: str) -> dict[str, Any]:
